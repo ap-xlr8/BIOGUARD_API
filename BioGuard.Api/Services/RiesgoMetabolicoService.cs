@@ -219,7 +219,21 @@ public class RiesgoMetabolicoService : IRiesgoMetabolicoService
 
     public async Task<AlertTrigger?> CheckAlertTriggerAsync(string pacienteId, IrmeResult irmeResult, LecturaSensor? lectura = null)
     {
-        var isSleepTime = DateTime.UtcNow.Hour >= SUEÑO_INICIO_HORA || DateTime.UtcNow.Hour < SUEÑO_FIN_HORA;
+        var paciente = await _db.FindFirstOrDefaultAsync(_db.Pacientes, p => p.Id == pacienteId);
+        var timezoneId = paciente?.ZonaHoraria ?? "America/Mexico_City";
+
+        bool isSleepTime = false;
+        try
+        {
+            var tz = TimeZoneInfo.FindSystemTimeZoneById(timezoneId);
+            var localTime = TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, tz);
+            isSleepTime = localTime.Hour >= SUEÑO_INICIO_HORA || localTime.Hour < SUEÑO_FIN_HORA;
+        }
+        catch
+        {
+            var localTime = DateTime.UtcNow.AddHours(-6);
+            isSleepTime = localTime.Hour >= SUEÑO_INICIO_HORA || localTime.Hour < SUEÑO_FIN_HORA;
+        }
 
         if (irmeResult.NivelRiesgo == "Crítico" && isSleepTime)
         {
@@ -259,7 +273,4 @@ public class RiesgoMetabolicoService : IRiesgoMetabolicoService
 
         return null;
     }
-
-    private bool EsHoraSueno(int hora)
-        => hora >= SUEÑO_INICIO_HORA || hora < SUEÑO_FIN_HORA;
 }

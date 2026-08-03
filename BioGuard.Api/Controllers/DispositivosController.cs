@@ -52,16 +52,19 @@ public class DispositivosController : ControllerBase
     }
 
     [HttpPost("heartbeat")]
-    public async Task<IActionResult> Heartbeat([FromBody] HeartbeatRequest request)
+    public async Task<IActionResult> Heartbeat([FromBody] HeartbeatRequest? request)
     {
         var pacienteId = User.FindFirst("paciente_id")?.Value;
         if (string.IsNullOrEmpty(pacienteId)) return Unauthorized();
 
-        if (request.PacienteId != pacienteId)
+        if (request != null && !string.IsNullOrEmpty(request.PacienteId) && request.PacienteId != pacienteId)
             return Unauthorized(new { message = "El PacienteId no corresponde al token" });
 
         _logger.LogDebug("Heartbeat received for patient {PacienteId}", pacienteId);
-        var (_, rateLimited) = await _dispositivoService.HeartbeatAsync(pacienteId);
+        var (_, rateLimited) = await _dispositivoService.HeartbeatAsync(
+            pacienteId,
+            request?.Bateria,
+            request?.SensoresActivos);
         return Ok(new { message = "Heartbeat recibido" });
     }
 
@@ -176,7 +179,9 @@ public class DispositivosController : ControllerBase
 }
 
 public record HeartbeatRequest(
-    [Required] [StringLength(100)] string PacienteId);
+    string? PacienteId,
+    int? Bateria = null,
+    List<string>? SensoresActivos = null);
 
 public record ActualizarDispositivoRequest(
     [Required] [StringLength(200)] string Nombre);

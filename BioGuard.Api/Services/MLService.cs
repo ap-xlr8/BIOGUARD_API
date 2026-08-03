@@ -46,7 +46,7 @@ public class MLService
 
         var recomendaciones = new List<string> { prediccion.Recomendacion };
 
-        if (prediccion.NivelRiesgo == "Critico")
+        if (prediccion.NivelRiesgo == "Crítico" || prediccion.NivelRiesgo == "Critico")
         {
             recomendaciones.Add("Contactar al cuidador de inmediato.");
             recomendaciones.Add("Verificar niveles de glucosa si es posible.");

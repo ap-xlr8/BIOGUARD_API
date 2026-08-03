@@ -80,7 +80,7 @@ public class SensorServiceTests
         var result = await _service.CrearEventoAsync("123456789012345678901234", 0.95, "Critico", "Pico de glucosa detectado");
 
         result.Should().NotBeNull();
-        result.NivelRiesgo.Should().Be("Critico");
+        result.NivelRiesgo.Should().Be("Crítico");
         result.ProbabilidadMl.Should().Be(0.95);
         result.Descripcion.Should().Be("Pico de glucosa detectado");
         result.Atendida.Should().BeFalse();

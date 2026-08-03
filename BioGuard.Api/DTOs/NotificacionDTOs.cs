@@ -9,3 +9,6 @@ public record CrearNotificacionRequest(
     [Required] [StringLength(50)] string Tipo,
     [StringLength(100)] string? CuidadorId = null,
     [StringLength(100)] string? UsuarioWebId = null);
+
+public record RegisterFcmTokenRequest(
+    [Required] string Token);

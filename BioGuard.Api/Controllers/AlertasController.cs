@@ -106,10 +106,15 @@ public class AlertasController : ControllerBase
         if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(request.PacienteId, usuarioId, role!))
             return Forbid();
 
-        _logger.LogInformation("Creating alert for paciente: {PacienteId}, type: {Tipo}, level: {Nivel}", request.PacienteId, request.Tipo, request.Nivel);
+        var tipo = request.Tipo ?? request.TipoAlerta ?? "General";
+        var nivel = request.Nivel ?? "Moderado";
+        var titulo = request.Titulo ?? request.Descripcion ?? "Alerta de Salud";
+        var mensaje = request.Mensaje ?? request.Descripcion ?? "Se ha detectado una alerta.";
+
+        _logger.LogInformation("Creating alert for paciente: {PacienteId}, type: {Tipo}, level: {Nivel}", request.PacienteId, tipo, nivel);
 
         var nivelesValidos = new[] { "Bajo", "Leve", "Moderado", "Alto", "Crítico" };
-        if (!Array.Exists(nivelesValidos, n => n.Equals(request.Nivel, StringComparison.OrdinalIgnoreCase)))
+        if (!Array.Exists(nivelesValidos, n => n.Equals(nivel, StringComparison.OrdinalIgnoreCase)))
             return BadRequest(new { message = "Nivel de riesgo inválido" });
 
         var sensorData = new SensorData
@@ -122,10 +127,10 @@ public class AlertasController : ControllerBase
 
         var alerta = await _alertaService.CrearAsync(
             request.PacienteId,
-            InputSanitizer.StripHtml(request.Tipo),
-            InputSanitizer.StripHtml(request.Nivel),
-            InputSanitizer.StripHtml(request.Titulo),
-            InputSanitizer.StripHtml(request.Mensaje), sensorData);
+            InputSanitizer.StripHtml(tipo),
+            InputSanitizer.StripHtml(nivel),
+            InputSanitizer.StripHtml(titulo),
+            InputSanitizer.StripHtml(mensaje), sensorData);
 
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
         await _auditoriaService.RegistrarAsync(usuarioId, "crear_alerta", "alertas", alerta.Id, ip);
@@ -160,6 +165,34 @@ public class AlertasController : ControllerBase
 
         _logger.LogInformation("Alert resolved successfully: {AlertaId}", id);
         return Ok(new { message = "Alerta resuelta" });
+    }
+
+    [HttpPost("{id}/atender")]
+    public async Task<IActionResult> Atender(string id, [FromBody] AtenderAlertaRequest request)
+    {
+        var usuarioId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+        if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
+
+        var alerta = await _alertaService.ObtenerPorIdAsync(id);
+        if (alerta == null) return NotFound();
+
+        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(alerta.PacienteId, usuarioId, role!))
+            return Forbid();
+
+        _logger.LogInformation("Attending alert: {AlertaId}, user: {UsuarioId}", id, usuarioId);
+        var result = await _alertaService.ResolverAsync(id, usuarioId, request.NotasAtencion);
+        if (!result)
+        {
+            _logger.LogWarning("Alert not found for attending: {AlertaId}", id);
+            return NotFound();
+        }
+
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        await _auditoriaService.RegistrarAsync(usuarioId, "atender_alerta", "alertas", id, ip);
+
+        _logger.LogInformation("Alert attended successfully: {AlertaId}", id);
+        return Ok(new { message = "Alerta atendida" });
     }
 
     [HttpDelete("{id}")]

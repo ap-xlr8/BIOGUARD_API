@@ -55,6 +55,9 @@ public class Paciente
     [BsonElement("contacto_emergencia_parentesco")]
     public string? ContactoEmergenciaParentesco { get; set; }
 
+    [BsonElement("zona_horaria")]
+    public string ZonaHoraria { get; set; } = "America/Mexico_City";
+
     [BsonElement("guardian_nocturno_activo")]
     public bool GuardianNocturnoActivo { get; set; } = false;
 

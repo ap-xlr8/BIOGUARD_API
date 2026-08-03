@@ -10,15 +10,25 @@ public class CriptoService
 
     public CriptoService(IConfiguration config)
     {
-        var configuredKey = config["Cripto:Key"];
+        var configuredKey = config["Cripto:Key"]
+            ?? Environment.GetEnvironmentVariable("CRIPTO_KEY");
         if (!string.IsNullOrEmpty(configuredKey))
         {
             _key = SHA256.HashData(Encoding.UTF8.GetBytes(configuredKey));
         }
         else
         {
-            var fallbackSecret = config["Jwt:Key"] ?? "BioGuardDefaultSecretForEncryptionFallback123!";
-            _key = SHA256.HashData(Encoding.UTF8.GetBytes(fallbackSecret));
+            // Fallback: derivar de Jwt:Key con dominio separado para no reusar la clave
+            // de firma JWT directamente como clave de cifrado. Jwt:Key es obligatorio
+            // (Program.cs valida que exista con >= 32 bytes).
+            var jwtKey = config["Jwt:Key"];
+            if (string.IsNullOrEmpty(jwtKey))
+            {
+                throw new InvalidOperationException(
+                    "CriptoService: no hay clave de cifrado configurada. Define Cripto:Key, " +
+                    "CRIPTO_KEY o Jwt:Key antes de arrancar.");
+            }
+            _key = SHA256.HashData(Encoding.UTF8.GetBytes("bioguard-cripto-v1:" + jwtKey));
         }
     }
 

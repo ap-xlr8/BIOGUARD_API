@@ -130,6 +130,7 @@ public class AdminController : ControllerBase
     }
 
     [HttpGet("metricas")]
+    [Authorize(Roles = "administrador")]
     public async Task<IActionResult> ObtenerMetricas([FromQuery] DateTime? desde = null, [FromQuery] DateTime? hasta = null)
     {
         var adminId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "unknown";

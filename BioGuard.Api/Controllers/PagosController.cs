@@ -308,6 +308,13 @@ public class PagosController : ControllerBase
     [HttpPost("webhook/paypal")]
     public async Task<IActionResult> WebhookPayPal()
     {
+        // PayPal temporalmente deshabilitado: no se verifica firma de webhook.
+        // Rechazar cualquier evento hasta implementar verificación real.
+        _logger.LogWarning("PayPal webhook received but processor is temporarily disabled");
+        await Task.CompletedTask;
+        return StatusCode(501, new { received = false, error = "PayPal temporalmente no disponible" });
+
+#pragma warning disable CS0162 // Unreachable code (PayPal deshabilitado)
         try
         {
             using var reader = new StreamReader(Request.Body);
@@ -375,6 +382,7 @@ public class PagosController : ControllerBase
         {
             _logger.LogError(ex, "PayPal webhook error");
             return StatusCode(500, new { error = "Webhook processing failed" });
+#pragma warning restore CS0162
         }
     }
 

@@ -251,4 +251,47 @@ public class AlertasIntegrationTests : IClassFixture<CustomWebApplicationFactory
         var response = await _client.GetAsync("/api/Alertas/a1");
         response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
+
+    [Fact]
+    public async Task Atender_AlertaExiste_Retorna200()
+    {
+        var alerta = new Alerta
+        {
+            Id = "a1",
+            PacienteId = "123456789012345678901234",
+            Tipo = "glucosa",
+            Nivel = "Crítico",
+            Titulo = "Alerta",
+            Mensaje = "Glucosa alta",
+            Atendida = false,
+            FechaCreacion = DateTime.UtcNow
+        };
+
+        _mockDb.Setup(db => db.FindFirstOrDefaultAsync(
+                It.IsAny<IMongoCollection<Alerta>>(),
+                It.IsAny<System.Linq.Expressions.Expression<Func<Alerta, bool>>>()))
+            .ReturnsAsync(alerta);
+
+        var mockResult = new Mock<UpdateResult>();
+        mockResult.Setup(r => r.ModifiedCount).Returns(1);
+
+        _mockAlertas.Setup(c => c.UpdateOneAsync(
+                It.IsAny<FilterDefinition<Alerta>>(),
+                It.IsAny<UpdateDefinition<Alerta>>(),
+                It.IsAny<UpdateOptions>(),
+                It.IsAny<CancellationToken>()))
+            .ReturnsAsync(mockResult.Object);
+
+        _client.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
+                TestTokenHelper.GenerateDuenoToken());
+
+        var request = new { NotasAtencion = "Emergencia atendida" };
+        var response = await _client.PostAsJsonAsync("/api/Alertas/a1/atender", request);
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var json = await response.Content.ReadAsStringAsync();
+        var doc = JsonDocument.Parse(json);
+        doc.RootElement.GetProperty("message").GetString().Should().Be("Alerta atendida");
+    }
 }

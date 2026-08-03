@@ -83,7 +83,7 @@ public class ReportesController : ControllerBase
             eventos.Count,
             alertas.Count,
             medicamentos.Count,
-            eventos.Count(e => e.NivelRiesgo == "Critico"),
+            eventos.Count(e => e.NivelRiesgo == "Crítico" || e.NivelRiesgo == "Critico"),
             alertas.Count(a => !a.Atendida),
             promedioPulso,
             lecturas.FirstOrDefault()?.Timestamp);

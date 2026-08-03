@@ -90,6 +90,7 @@ public static class ServiceExtensions
                 new RateLimitRule { Endpoint = "*", Period = "1m", Limit = 100 },
                 new RateLimitRule { Endpoint = "*:*:post", Period = "1m", Limit = 30 },
                 new RateLimitRule { Endpoint = "post:/api/Auth/login-web", Period = "1m", Limit = 5 },
+                new RateLimitRule { Endpoint = "post:/api/Auth/login-codigo", Period = "1m", Limit = 5 },
                 new RateLimitRule { Endpoint = "post:/api/Auth/register", Period = "1m", Limit = 3 },
                 new RateLimitRule { Endpoint = "post:/api/Auth/2FA/enviar", Period = "1m", Limit = 3 },
                 new RateLimitRule { Endpoint = "post:/api/Auth/2FA/verificar", Period = "1m", Limit = 5 },
@@ -98,7 +99,8 @@ public static class ServiceExtensions
                 new RateLimitRule { Endpoint = "post:/api/Auth/reset-password", Period = "1m", Limit = 3 },
                 new RateLimitRule { Endpoint = "put:/api/Auth/cambiar-password", Period = "1m", Limit = 3 },
                 new RateLimitRule { Endpoint = "post:/api/Sensores/lectura", Period = "1m", Limit = 60 },
-                new RateLimitRule { Endpoint = "*:Post:lectura-batch", Period = "1m", Limit = 10 }
+                new RateLimitRule { Endpoint = "post:/api/Sensores/lectura-batch", Period = "1m", Limit = 10 },
+                new RateLimitRule { Endpoint = "post:/api/Sensores/lecturas", Period = "1m", Limit = 10 }
             };
         });
         services.Configure<ClientRateLimitOptions>(options =>

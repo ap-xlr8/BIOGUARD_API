@@ -134,7 +134,7 @@ public class PacientesController : ControllerBase
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
         _logger.LogInformation("Creating paciente for user: {UserId}, name: {Nombre}", usuarioId, request.Nombre);
-        var (success, codigo, error) = await _pacienteService.CrearPacienteAsync(usuarioId, InputSanitizer.StripHtml(request.Nombre));
+        var (success, codigo, pacienteId, error) = await _pacienteService.CrearPacienteAsync(usuarioId, InputSanitizer.StripHtml(request.Nombre));
         if (!success)
         {
             _logger.LogWarning("Paciente creation failed for user: {UserId}: {Error}", usuarioId, error);
@@ -143,7 +143,7 @@ public class PacientesController : ControllerBase
         _logger.LogInformation("Paciente created successfully for user: {UserId}", usuarioId);
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
         await _auditoriaService.RegistrarAsync(usuarioId, "crear", "pacientes", codigo!, ip);
-        return Ok(new { message = "Paciente creado", CodigoAccesoQr = codigo });
+        return Ok(new { message = "Paciente creado", CodigoAccesoQr = codigo, PacienteId = pacienteId });
     }
 
     /// <summary>

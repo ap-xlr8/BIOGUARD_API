@@ -38,7 +38,8 @@ public record Enviar2FARequest(
 
 public record Verificar2FARequest(
     [Required] [EmailAddress] string Correo,
-    [Required] [StringLength(6, MinimumLength = 6)] string Codigo);
+    string? Codigo = null,
+    string? CodigoOtp = null);
 
 public record ForgotPasswordRequest(
     [Required] [EmailAddress] string Correo);
@@ -102,7 +103,9 @@ public record LecturaSensorRequest(
     [Range(30.0, 45.0)] double TemperaturaC,
     [Range(0.0, 100.0)] double SudoracionGsr,
     [Range(0, 200)] double? Hrv = null,
-    [Range(50, 100)] int? Spo2 = null);
+    [Range(50, 100)] int? Spo2 = null,
+    DateTime? Timestamp = null,
+    [StringLength(50)] string? DispositivoMac = null);
 
 public record EventoMetabolicoResponse(
     string Id, string NivelRiesgo, double ProbabilidadMl,
@@ -114,7 +117,8 @@ public record AtenderEventoRequest(
 public record TrackingGpsRequest(
     [Range(-180.0, 180.0)] double Longitud,
     [Range(-90.0, 90.0)] double Latitud,
-    bool EsEmergencia);
+    bool EsEmergencia,
+    [StringLength(50)] string? DispositivoMac = null);
 
 public record TrackingResponse(
     double Longitud, double Latitud, DateTime Timestamp, bool EsEmergencia);

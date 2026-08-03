@@ -11,6 +11,8 @@ public class PacienteService
     private readonly IMongoDbContext _db;
     private readonly ILogger<PacienteService> _logger;
 
+    private const int QR_EXPIRY_MINUTES = 10;
+
     public PacienteService(IMongoDbContext db, ILogger<PacienteService> logger)
     {
         _db = db;
@@ -52,29 +54,30 @@ public class PacienteService
         _logger.LogInformation("Biometrics updated for patient: {PacienteId}", pacienteId);
     }
 
-    public async Task<(bool success, string? codigo, string? error)> CrearPacienteAsync(string usuarioWebId, string nombre)
+    public async Task<(bool success, string? codigo, string? pacienteId, string? error)> CrearPacienteAsync(string usuarioWebId, string nombre)
     {
         var user = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.Id == usuarioWebId);
-        if (user == null) return (false, null, "Usuario no encontrado");
+        if (user == null) return (false, null, null, "Usuario no encontrado");
 
         var plan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Id == user.PlanId);
-        if (plan == null) return (false, null, "Plan no encontrado");
+        if (plan == null) return (false, null, null, "Plan no encontrado");
 
         var count = await _db.CountDocumentsAsync(_db.Pacientes, p => p.UsuarioWebId == usuarioWebId);
         if (count >= plan.LimitePacientes)
-            return (false, null, $"Límite de pacientes alcanzado ({plan.LimitePacientes})");
+            return (false, null, null, $"Límite de pacientes alcanzado ({plan.LimitePacientes})");
 
         var codigo = GenerarCodigo();
         var paciente = new Paciente
         {
             UsuarioWebId = usuarioWebId,
             CodigoAccesoQr = codigo,
+            CodigoExpira = DateTime.UtcNow.AddMinutes(QR_EXPIRY_MINUTES),
             Nombre = nombre,
             FechaRegistro = DateTime.UtcNow
         };
         await _db.Pacientes.InsertOneAsync(paciente);
         _logger.LogInformation("Patient created: {PacienteId} for user: {UsuarioWebId}", paciente.Id, usuarioWebId);
-        return (true, codigo, null);
+        return (true, codigo, paciente.Id, null);
     }
 
     public async Task<bool> UpdateNombreAsync(string pacienteId, string nombre)
@@ -95,7 +98,9 @@ public class PacienteService
     public async Task<string?> RegenerarCodigoAccesoAsync(string pacienteId)
     {
         var codigo = GenerarCodigo();
-        var update = Builders<Paciente>.Update.Set(p => p.CodigoAccesoQr, codigo);
+        var update = Builders<Paciente>.Update
+            .Set(p => p.CodigoAccesoQr, codigo)
+            .Set(p => p.CodigoExpira, DateTime.UtcNow.AddMinutes(QR_EXPIRY_MINUTES));
         var result = await _db.Pacientes.UpdateOneAsync(p => p.Id == pacienteId, update);
         if (result.ModifiedCount == 0)
         {

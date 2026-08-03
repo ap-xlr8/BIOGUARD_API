@@ -9,13 +9,20 @@ public record AlertaResponse(
 
 public record CrearAlertaRequest(
     [Required] string PacienteId,
-    [Required] [StringLength(100)] string Tipo,
-    [Required] [StringLength(50)] string Nivel,
-    [Required] [StringLength(200)] string Titulo,
-    [Required] [StringLength(500)] string Mensaje,
-    int? PulsoBpm, double? TemperaturaC,
-    double? SudoracionGsr, double? ProbabilidadPico);
+    string? Tipo,
+    string? Nivel,
+    string? Titulo,
+    string? Mensaje,
+    int? PulsoBpm,
+    double? TemperaturaC,
+    double? SudoracionGsr,
+    double? ProbabilidadPico,
+    string? TipoAlerta = null,
+    string? Descripcion = null);
 
 public record ResolverAlertaRequest(
     [Required] string CuidadorId,
     [StringLength(500)] string? AccionTomada);
+
+public record AtenderAlertaRequest(
+    [Required] string NotasAtencion);

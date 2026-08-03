@@ -53,6 +53,14 @@ public class CuidadorService
             return (false, null, "", $"Límite de cuidadores alcanzado ({limiteCuidadores})");
         }
 
+        if (!string.IsNullOrWhiteSpace(correo))
+        {
+            var existente = await _db.FindFirstOrDefaultAsync(_db.Cuidadores,
+                c => c.PacienteId == pacienteId && c.Correo == correo);
+            if (existente != null)
+                return (false, null, "", "Ya existe un cuidador con ese correo para este paciente");
+        }
+
         var codigo = GenerarCodigo();
         var cuidador = new Cuidador
         {

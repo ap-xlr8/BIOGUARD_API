@@ -21,17 +21,29 @@ public class EmailService : IEmailService
     {
         var subject = "BioGuard - Verifica tu correo electrónico";
         var body = $"""
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #2563eb;">BioGuard - Verificación de correo</h2>
-                <p>Hola <strong>{nombre}</strong>,</p>
-                <p>Tu código de verificación es:</p>
-                <div style="background: #f3f4f6; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
-                    <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1f2937;">{code}</span>
+            <div style="background-color: #0b0f19; padding: 40px 20px; font-family: Arial, sans-serif; text-align: center;">
+                <div style="max-width: 500px; margin: 0 auto; background-color: #131926; border: 1.5px solid #202b3d; border-radius: 16px; padding: 32px; text-align: left; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
+                    <div style="text-align: center; margin-bottom: 24px;">
+                        <div style="font-size: 24px; font-weight: 800; color: #00E676; letter-spacing: 2px;">BIOGUARD</div>
+                        <div style="font-size: 10px; color: #6b7d99; letter-spacing: 1px; margin-top: 4px;">MONITOREO METABÓLICO INTELIGENTE</div>
+                    </div>
+                    <div style="color: #e2e8f0; font-size: 15px; line-height: 1.6;">
+                        <p style="margin-top: 0;">Hola <strong style="color: #ffffff;">{nombre}</strong>,</p>
+                        <p>Gracias por registrarte en BioGuard. Para completar tu registro y activar tu cuenta, utiliza el siguiente código de verificación de un solo uso:</p>
+                    </div>
+                    <div style="background: linear-gradient(135deg, #182235 0%, #1c2a42 100%); border: 1px solid #283a54; padding: 24px; text-align: center; border-radius: 12px; margin: 28px 0;">
+                        <span style="font-size: 36px; font-weight: 800; letter-spacing: 10px; color: #00E676; font-family: monospace; padding-left: 10px;">{code}</span>
+                    </div>
+                    <div style="color: #94a3b8; font-size: 13px; line-height: 1.5;">
+                        <p style="margin-bottom: 4px;">⚠️ Este código es válido por <strong>10 minutos</strong>. Por tu seguridad, no compartas este código con nadie.</p>
+                        <p style="margin-top: 0;">Si no solicitaste este registro, puedes ignorar este correo de forma segura.</p>
+                    </div>
+                    <hr style="border: none; border-top: 1px solid #202b3d; margin: 28px 0;">
+                    <div style="text-align: center; color: #64748b; font-size: 11px; line-height: 1.4;">
+                        <p style="margin: 0;">Este es un correo automático, por favor no respondas a esta dirección.</p>
+                        <p style="margin: 4px 0 0 0;">&copy; {DateTime.UtcNow.Year} BioGuard. Todos los derechos reservados.</p>
+                    </div>
                 </div>
-                <p style="color: #6b7280;">Este código expira en <strong>10 minutos</strong>.</p>
-                <p style="color: #6b7280;">Si no creaste esta cuenta, ignora este correo.</p>
-                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-                <p style="color: #9ca3af; font-size: 12px;">BioGuard - Sistema de monitoreo glucémico</p>
             </div>
             """;
         return await SendEmailAsync(toEmail, subject, body);
@@ -41,16 +53,30 @@ public class EmailService : IEmailService
     {
         var subject = "BioGuard - Recupera tu contraseña";
         var body = $"""
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #2563eb;">BioGuard - Recuperación de contraseña</h2>
-                <p>Hola <strong>{nombre}</strong>,</p>
-                <p>Recibimos una solicitud para restablecer tu contraseña.</p>
-                <p>Haz clic en el siguiente enlace:</p>
-                <a href="{resetLink}" style="display: inline-block; background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin: 10px 0;">Restablecer contraseña</a>
-                <p style="color: #6b7280;">Este enlace expira en <strong>1 hora</strong>.</p>
-                <p style="color: #6b7280;">Si no solicitaste esto, ignora este correo.</p>
-                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-                <p style="color: #9ca3af; font-size: 12px;">BioGuard - Sistema de monitoreo glucémico</p>
+            <div style="background-color: #0b0f19; padding: 40px 20px; font-family: Arial, sans-serif; text-align: center;">
+                <div style="max-width: 500px; margin: 0 auto; background-color: #131926; border: 1.5px solid #202b3d; border-radius: 16px; padding: 32px; text-align: left; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
+                    <div style="text-align: center; margin-bottom: 24px;">
+                        <div style="font-size: 24px; font-weight: 800; color: #00E676; letter-spacing: 2px;">BIOGUARD</div>
+                        <div style="font-size: 10px; color: #6b7d99; letter-spacing: 1px; margin-top: 4px;">MONITOREO METABÓLICO INTELIGENTE</div>
+                    </div>
+                    <div style="color: #e2e8f0; font-size: 15px; line-height: 1.6;">
+                        <p style="margin-top: 0;">Hola <strong style="color: #ffffff;">{nombre}</strong>,</p>
+                        <p>Recibimos una solicitud para restablecer la contraseña de tu cuenta de BioGuard. Haz clic en el botón de abajo para configurar una nueva contraseña:</p>
+                    </div>
+                    <div style="text-align: center; margin: 28px 0;">
+                        <a href="{resetLink}" style="display: inline-block; background-color: #00E676; color: #0b0f19; font-weight: bold; font-size: 14px; padding: 12px 28px; text-decoration: none; border-radius: 8px;">Restablecer Contraseña</a>
+                    </div>
+                    <div style="color: #94a3b8; font-size: 13px; line-height: 1.5;">
+                        <p style="margin-bottom: 4px;">⚠️ Este enlace es válido por <strong>1 hora</strong>. Si el botón no funciona, copia y pega este enlace en tu navegador:</p>
+                        <p style="word-break: break-all; color: #00E676; font-size: 11px;">{resetLink}</p>
+                        <p style="margin-top: 8px;">Si no solicitaste esto, puedes ignorar este correo de forma segura.</p>
+                    </div>
+                    <hr style="border: none; border-top: 1px solid #202b3d; margin: 28px 0;">
+                    <div style="text-align: center; color: #64748b; font-size: 11px; line-height: 1.4;">
+                        <p style="margin: 0;">Este es un correo automático, por favor no respondas a esta dirección.</p>
+                        <p style="margin: 4px 0 0 0;">&copy; {DateTime.UtcNow.Year} BioGuard. Todos los derechos reservados.</p>
+                    </div>
+                </div>
             </div>
             """;
         return await SendEmailAsync(toEmail, subject, body);
@@ -60,13 +86,28 @@ public class EmailService : IEmailService
     {
         var subject = "BioGuard - Contraseña actualizada";
         var body = $"""
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                <h2 style="color: #2563eb;">BioGuard - Contraseña actualizada</h2>
-                <p>Hola <strong>{nombre}</strong>,</p>
-                <p>Tu contraseña ha sido cambiada exitosamente.</p>
-                <p style="color: #6b7280;">Si no realizaste este cambio, contacta a soporte inmediatamente.</p>
-                <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-                <p style="color: #9ca3af; font-size: 12px;">BioGuard - Sistema de monitoreo glucémico</p>
+            <div style="background-color: #0b0f19; padding: 40px 20px; font-family: Arial, sans-serif; text-align: center;">
+                <div style="max-width: 500px; margin: 0 auto; background-color: #131926; border: 1.5px solid #202b3d; border-radius: 16px; padding: 32px; text-align: left; box-shadow: 0 8px 30px rgba(0,0,0,0.3);">
+                    <div style="text-align: center; margin-bottom: 24px;">
+                        <div style="font-size: 24px; font-weight: 800; color: #00E676; letter-spacing: 2px;">BIOGUARD</div>
+                        <div style="font-size: 10px; color: #6b7d99; letter-spacing: 1px; margin-top: 4px;">MONITOREO METABÓLICO INTELIGENTE</div>
+                    </div>
+                    <div style="color: #e2e8f0; font-size: 15px; line-height: 1.6;">
+                        <p style="margin-top: 0;">Hola <strong style="color: #ffffff;">{nombre}</strong>,</p>
+                        <p>Te notificamos que la contraseña de tu cuenta de BioGuard ha sido <strong>actualizada con éxito</strong>.</p>
+                    </div>
+                    <div style="text-align: center; margin: 28px 0;">
+                        <div style="display: inline-block; width: 64px; height: 64px; line-height: 64px; border-radius: 32px; background-color: rgba(0, 230, 118, 0.1); border: 2px solid #00E676; color: #00E676; font-size: 32px; font-weight: bold;">✓</div>
+                    </div>
+                    <div style="color: #f87171; background-color: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.2); padding: 16px; border-radius: 8px; font-size: 13px; line-height: 1.5;">
+                        <strong>¿No fuiste tú?</strong> Si no realizaste este cambio, por favor ponte en contacto con nuestro equipo de soporte técnico inmediatamente.
+                    </div>
+                    <hr style="border: none; border-top: 1px solid #202b3d; margin: 28px 0;">
+                    <div style="text-align: center; color: #64748b; font-size: 11px; line-height: 1.4;">
+                        <p style="margin: 0;">Este es un correo automático, por favor no respondas a esta dirección.</p>
+                        <p style="margin: 4px 0 0 0;">&copy; {DateTime.UtcNow.Year} BioGuard. Todos los derechos reservados.</p>
+                    </div>
+                </div>
             </div>
             """;
         return await SendEmailAsync(toEmail, subject, body);

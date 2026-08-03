@@ -57,6 +57,21 @@ public class AuthService
         var plan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Nombre == request.PlanNombre);
         if (plan == null)
         {
+            // Match case-insensitive + aliases comunes (ej. móvil envía "Gratis")
+            var alias = request.PlanNombre.Trim().ToLowerInvariant() switch
+            {
+                "gratis" or "free" or "bio guard free" => "BioGuard Free",
+                "plus" => "BioGuard Plus",
+                "care" => "BioGuard Care",
+                "family" or "familia" => "BioGuard Family",
+                "pro" or "pro salud" or "prosalud" => "Pro Salud",
+                _ => request.PlanNombre
+            };
+            plan = await _db.FindFirstOrDefaultAsync(_db.Planes,
+                p => p.Nombre.ToLower() == alias.ToLower());
+        }
+        if (plan == null)
+        {
             _logger.LogWarning("Registration attempt with invalid plan: {PlanNombre}", request.PlanNombre);
             return null;
         }
@@ -151,7 +166,8 @@ public class AuthService
         }
 
         var plan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Id == user.PlanId);
-        var token = GenerateToken(user.Id, user.Correo, "dueno");
+        var duenoExtra = await PacienteIdClaimParaDuenoAsync(user.Id);
+        var token = GenerateToken(user.Id, user.Correo, "dueno", duenoExtra);
         var refreshToken = await CreateAndStoreRefreshTokenAsync(user.Id);
         _logger.LogInformation("User logged in successfully: {UserId}", user.Id);
 
@@ -193,8 +209,15 @@ public class AuthService
         await _db.UsuariosWeb.InsertOneAsync(user);
         }
 
+        if (!user.Activo)
+        {
+            _logger.LogWarning("Google login blocked - account inactive: {Email}", email);
+            return null;
+        }
+
         var userPlan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Id == user.PlanId);
-        var token = GenerateToken(user.Id, user.Correo, "dueno");
+        var duenoExtra = await PacienteIdClaimParaDuenoAsync(user.Id);
+        var token = GenerateToken(user.Id, user.Correo, "dueno", duenoExtra);
         var refreshToken = await CreateAndStoreRefreshTokenAsync(user.Id);
         _logger.LogInformation("Google login successful for user: {UserId}", user.Id);
 
@@ -331,7 +354,10 @@ public class AuthService
     {
         var dueno = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.Id == usuarioId);
         if (dueno != null)
-            return (dueno.Id, $"{dueno.Nombre} {dueno.ApellidoPaterno}", "dueno", null);
+        {
+            var duenoExtra = await PacienteIdClaimParaDuenoAsync(dueno.Id);
+            return (dueno.Id, $"{dueno.Nombre} {dueno.ApellidoPaterno}", "dueno", duenoExtra);
+        }
 
         var paciente = await _db.FindFirstOrDefaultAsync(_db.Pacientes, p => p.Id == usuarioId);
         if (paciente != null)
@@ -415,9 +441,12 @@ public class AuthService
             return null;
         }
 
+        var requestCodigo = request.Codigo ?? request.CodigoOtp;
+        if (string.IsNullOrEmpty(requestCodigo)) return null;
+
         var codeMatch = CryptographicOperations.FixedTimeEquals(
             Encoding.UTF8.GetBytes(user.TwoFactorCode),
-            Encoding.UTF8.GetBytes(request.Codigo));
+            Encoding.UTF8.GetBytes(requestCodigo));
         if (!codeMatch)
         {
             var attempts = user.Failed2FAAttempts + 1;
@@ -517,6 +546,7 @@ public class AuthService
         await _db.UsuariosWeb.UpdateOneAsync(u => u.Id == user.Id, update);
         _logger.LogInformation("Password reset successfully for user: {UserId}", user.Id);
 
+        // Revoca todas las sesiones renovables (ver nota en CambiarPasswordAsync).
         await RevokeRefreshTokenChainAsync(user.Id);
 
         await _emailService.SendPasswordChangedNotificationAsync(user.Correo, $"{user.Nombre} {user.ApellidoPaterno}");
@@ -554,6 +584,8 @@ public class AuthService
         await _db.UsuariosWeb.UpdateOneAsync(u => u.Id == userId, update);
         _logger.LogInformation("Password changed successfully for user: {UserId}", userId);
 
+        // Revoca todas las sesiones renovables. El access token vigente (corto, ~30 min)
+        // no se puede invalidar sin su jti; expira por sí solo y no es renovable tras esto.
         await RevokeRefreshTokenChainAsync(userId);
 
         await _emailService.SendPasswordChangedNotificationAsync(user.Correo, $"{user.Nombre} {user.ApellidoPaterno}");
@@ -665,6 +697,13 @@ public class AuthService
     }
 
     // ── Helpers ────────────────────────────────────────────
+
+    private async Task<Dictionary<string, string>?> PacienteIdClaimParaDuenoAsync(string usuarioWebId)
+    {
+        var paciente = await _db.FindFirstOrDefaultAsync(_db.Pacientes, p => p.UsuarioWebId == usuarioWebId);
+        if (paciente == null) return null;
+        return new Dictionary<string, string> { { "paciente_id", paciente.Id } };
+    }
 
     private async Task<string> CreateAndStoreRefreshTokenAsync(string userId)
     {

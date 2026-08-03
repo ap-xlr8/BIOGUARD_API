@@ -110,6 +110,7 @@ public class AuthController : ControllerBase
     // POST /api/Auth/2FA/enviar [WEB]
 
     [HttpPost("2FA/enviar")]
+    [HttpPost("enviar-2fa")]
     public async Task<IActionResult> Enviar2FA([FromBody] Enviar2FARequest request)
     {
         _logger.LogInformation("2FA send attempt for email: {Email}", request.Correo);
@@ -125,6 +126,7 @@ public class AuthController : ControllerBase
     // POST /api/Auth/2FA/verificar [WEB]
 
     [HttpPost("2FA/verificar")]
+    [HttpPost("verificar-2fa")]
     public async Task<IActionResult> Verificar2FA([FromBody] Verificar2FARequest request)
     {
         _logger.LogInformation("2FA verification attempt");

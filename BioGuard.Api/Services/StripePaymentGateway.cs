@@ -103,14 +103,29 @@ public class StripePaymentGateway : IPaymentGateway
         {
             var signature = headers.GetValueOrDefault("Stripe-Signature", "");
             var stripeEvent = EventUtility.ConstructEvent(payload, signature, _options.WebhookSecret);
-            var session = stripeEvent.Data.Object as Session;
+
+            string? sessionId = null, subscriptionId = null, customerId = null, planId = null;
+            if (stripeEvent.Data.Object is Session session)
+            {
+                sessionId = session.Id;
+                subscriptionId = session.SubscriptionId;
+                customerId = session.CustomerId;
+                planId = session.Metadata?.GetValueOrDefault("plan_id");
+            }
+            else if (stripeEvent.Data.Object is Invoice invoice)
+            {
+                // invoice.paid / renovaciones: el objeto es Invoice, no Session
+                subscriptionId = invoice.SubscriptionId;
+                customerId = invoice.CustomerId;
+                sessionId = invoice.Id;
+            }
 
             return new PaymentWebhookEvent(
                 EventId: stripeEvent.Id,
                 Type: stripeEvent.Type,
-                SessionId: session?.Id,
-                SubscriptionId: session?.SubscriptionId,
-                CustomerId: session?.CustomerId,
+                SessionId: sessionId,
+                SubscriptionId: subscriptionId,
+                CustomerId: customerId,
                 Status: stripeEvent.Type switch
                 {
                     "checkout.session.completed" => "completado",
@@ -119,7 +134,7 @@ public class StripePaymentGateway : IPaymentGateway
                     "customer.subscription.deleted" => "cancelado",
                     _ => "desconocido"
                 },
-                PlanId: session?.Metadata?.GetValueOrDefault("plan_id")
+                PlanId: planId
             );
         }
         catch (StripeException ex)

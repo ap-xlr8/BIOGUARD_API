@@ -5,6 +5,8 @@ using Microsoft.Extensions.Logging;
 using BioGuard.Api.Services;
 using BioGuard.Api.DTOs;
 using BioGuard.Api.Config;
+using BioGuard.Api.Models;
+using MongoDB.Driver;
 
 namespace BioGuard.Api.Controllers;
 
@@ -184,6 +186,62 @@ public class NotificacionesController : ControllerBase
             return NotFound();
         }
         return NoContent();
+    }
+
+    // ── FCM Push Tokens ────────────────────────────────────────
+
+    /// <summary>
+    /// POST /api/Notificaciones/fcm/registrar-token [MÓVIL]
+    /// MÓDULO 5: Registrar o actualizar token FCM del usuario logueado
+    /// </summary>
+    [HttpPost("fcm/registrar-token")]
+    public async Task<IActionResult> RegistrarToken([FromBody] RegisterFcmTokenRequest request)
+    {
+        var usuarioId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value ?? "paciente";
+        if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
+
+        _logger.LogInformation("Registering FCM token for user {UsuarioId}", usuarioId);
+
+        // Buscar si ya existe el token para este usuario
+        var existing = await _db.FindFirstOrDefaultAsync(_db.FcmTokens, t => t.Token == request.Token && t.UsuarioId == usuarioId);
+        if (existing != null)
+        {
+            var update = Builders<FcmToken>.Update
+                .Set(t => t.FechaRegistro, DateTime.UtcNow)
+                .Set(t => t.Activo, true);
+            await _db.FcmTokens.UpdateOneAsync(t => t.Id == existing.Id, update);
+        }
+        else
+        {
+            var fcmToken = new BioGuard.Api.Models.FcmToken
+            {
+                UsuarioId = usuarioId,
+                Rol = role,
+                Token = request.Token,
+                Activo = true,
+                FechaRegistro = DateTime.UtcNow
+            };
+            await _db.FcmTokens.InsertOneAsync(fcmToken);
+        }
+
+        return Ok(new { message = "Token FCM registrado exitosamente" });
+    }
+
+    /// <summary>
+    /// DELETE /api/Notificaciones/fcm/token/{token} [MÓVIL]
+    /// MÓDULO 5: Eliminar o desactivar un token FCM
+    /// </summary>
+    [HttpDelete("fcm/token/{token}")]
+    public async Task<IActionResult> EliminarToken(string token)
+    {
+        var usuarioId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
+
+        _logger.LogInformation("Deleting FCM token for user {UsuarioId}", usuarioId);
+
+        var result = await _db.FcmTokens.DeleteManyAsync(t => t.Token == token && t.UsuarioId == usuarioId);
+        return Ok(new { message = $"Se eliminaron {result.DeletedCount} registros de token FCM" });
     }
 
 }

@@ -68,7 +68,7 @@ public class FCMService : IFCMService
         {
             var mensaje = new Message
             {
-                    Fid = token,
+                Fid = token,
                 Notification = new Notification { Title = titulo, Body = cuerpo },
                 Data = datos ?? new Dictionary<string, string>(),
                 Android = new AndroidConfig

@@ -43,7 +43,8 @@ public class DispositivoService
         return dispositivo;
     }
 
-    public async Task<(bool success, bool rateLimited)> HeartbeatAsync(string pacienteId)
+    public async Task<(bool success, bool rateLimited)> HeartbeatAsync(
+        string pacienteId, int? bateria = null, List<string>? sensoresActivos = null)
     {
         lock (_cacheLock)
         {
@@ -57,7 +58,15 @@ public class DispositivoService
         }
 
         _logger.LogInformation("Heartbeat recibido para paciente {PacienteId}", pacienteId);
-        var update = Builders<Dispositivo>.Update.Set(d => d.Conectado, true);
+        var update = Builders<Dispositivo>.Update
+            .Set(d => d.Conectado, true)
+            .Set(d => d.UltimaSincronizacion, DateTime.UtcNow);
+
+        if (bateria.HasValue)
+            update = update.Set(d => d.Bateria, bateria.Value);
+        if (sensoresActivos != null)
+            update = update.Set(d => d.SensoresDisponibles, sensoresActivos);
+
         var result = await _db.Dispositivos.UpdateOneAsync(d => d.PacienteId == pacienteId, update);
         if (result.ModifiedCount == 0)
             _logger.LogWarning("No se encontró dispositivo para paciente {PacienteId}", pacienteId);

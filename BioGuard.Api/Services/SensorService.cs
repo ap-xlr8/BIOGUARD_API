@@ -30,6 +30,7 @@ public class SensorService
         _mlService = mlService;
     }
 
+    private const int MaxResultadosRango = 5000;
     private static readonly Dictionary<string, DateTime> _lecturaCache = new();
     private static readonly object _lecturaCacheLock = new();
     private static readonly TimeSpan LecturaMinInterval = TimeSpan.FromSeconds(5);
@@ -48,10 +49,30 @@ public class SensorService
         }
     }
 
-    private static bool EsHorarioNocturno()
+    public static string NormalizarNivelRiesgo(string nivel)
     {
-        var hora = DateTime.UtcNow.AddHours(-6); // Ajuste a hora CDMX
-        return hora.Hour >= 22 || hora.Hour < 6;
+        if (string.IsNullOrWhiteSpace(nivel)) return "Bajo";
+        var lower = nivel.ToLowerInvariant();
+        if (lower.Contains("crit") || lower.Contains("crít")) return "Crítico";
+        if (lower.Contains("alto") || lower.Contains("high")) return "Alto";
+        if (lower.Contains("mod") || lower.Contains("medium")) return "Moderado";
+        if (lower.Contains("leve") || lower.Contains("low")) return "Leve";
+        return "Bajo";
+    }
+
+    private static bool EsHorarioNocturno(DateTime dt, string? timezoneId = null)
+    {
+        try
+        {
+            var tz = TimeZoneInfo.FindSystemTimeZoneById(timezoneId ?? "America/Mexico_City");
+            var localTime = TimeZoneInfo.ConvertTimeFromUtc(dt.ToUniversalTime(), tz);
+            return localTime.Hour >= 22 || localTime.Hour < 6;
+        }
+        catch
+        {
+            var hora = dt.AddHours(-6); // Ajuste a hora CDMX de fallback
+            return hora.Hour >= 22 || hora.Hour < 6;
+        }
     }
 
     private static bool ValidarRangosFisiologicos(int pulsoBpm, double temperaturaC, double sudoracionGsr, int? spo2)
@@ -66,7 +87,7 @@ public class SensorService
     public async Task<(LecturaSensor lectura, double probabilidadPico, string? nivelRiesgo)?> InsertarLecturaAsync(
         string pacienteId, string dispositivoMac,
         int pulsoBpm, double temperaturaC, double sudoracionGsr,
-        double? hrv, int? spo2, int diasHistorial = 30)
+        double? hrv, int? spo2, DateTime? timestamp = null, int diasHistorial = 30, bool bypassRateLimit = false)
     {
         if (!ValidarRangosFisiologicos(pulsoBpm, temperaturaC, sudoracionGsr, spo2))
         {
@@ -75,13 +96,14 @@ public class SensorService
             return null;
         }
 
-        if (EsRateLimited(pacienteId))
+        if (!bypassRateLimit && EsRateLimited(pacienteId))
         {
             _logger.LogDebug("Lectura rate limited for paciente {PacienteId}", pacienteId);
             return null;
         }
 
         var now = DateTime.UtcNow;
+        var lecturaTimestamp = timestamp ?? now;
         var lectura = new LecturaSensor
         {
             Meta = new MetaData
@@ -89,14 +111,14 @@ public class SensorService
                 PacienteId = pacienteId,
                 DispositivoMac = dispositivoMac
             },
-            Timestamp = now,
+            Timestamp = lecturaTimestamp,
             PulsoBpm = pulsoBpm,
             TemperaturaC = temperaturaC,
             SudoracionGsr = sudoracionGsr,
             Hrv = hrv,
             Spo2 = spo2,
             ProbabilidadPico = 0,
-            ExpireAt = now.AddDays(diasHistorial)
+            ExpireAt = lecturaTimestamp.AddDays(diasHistorial)
         };
 
         await _db.LecturasSensores.InsertOneAsync(lectura);
@@ -108,7 +130,9 @@ public class SensorService
         // Calcular IRME y generar alertas si es necesario
         try
         {
-            var irmeResult = await _irmeService.CalculateAsync(pacienteId, lectura);
+            var paciente = await _db.FindFirstOrDefaultAsync(_db.Pacientes, p => p.Id == pacienteId);
+            var isSleep = EsHorarioNocturno(lecturaTimestamp, paciente?.ZonaHoraria);
+            var irmeResult = await _irmeService.CalculateAsync(pacienteId, lectura, isSleep);
             probabilidadPico = irmeResult.Score / 100.0;
             nivelRiesgo = irmeResult.NivelRiesgo;
 
@@ -145,8 +169,8 @@ public class SensorService
                                 SudoracionGsr = lectura.SudoracionGsr,
                                 ProbabilidadPico = probabilidadPico
                             },
-                            EsCriticoNocturno: EsHorarioNocturno()
-                        );
+                             EsCriticoNocturno: EsHorarioNocturno(lecturaTimestamp, paciente?.ZonaHoraria)
+                         );
                         await _notificacionService.CrearAsync(pacienteId, alertaMl.Titulo, alertaMl.Mensaje, "ml_recomendacion");
                     }
                 }
@@ -237,12 +261,8 @@ public class SensorService
             // Si es crítico nocturno, registrar protocolo de escalamiento pendiente persistente
             if (trigger.EsCriticoNocturno)
             {
-                // Enviar push de alta prioridad al paciente INMEDIATAMENTE
-                await EnviarPacientePushAsync(pacienteId,
-                    "¡RESPONDE! Alerta de Guardián Nocturno",
-                    "Responde 'Estoy bien' en los próximos segundos para desactivar la alerta.",
-                    true);
-
+                // El push de alta prioridad al paciente ya se envió arriba (EnviarPacientePushAsync
+                // con EsCriticoNocturno=true). No reenviar para evitar notificación duplicada.
                 var paciente = await _db.FindFirstOrDefaultAsync(_db.Pacientes, p => p.Id == pacienteId);
                 var ventanaSegundos = paciente?.VentanaRespuestaSegundos > 0 ? paciente.VentanaRespuestaSegundos : 30;
 
@@ -338,7 +358,7 @@ public class SensorService
             Builders<LecturaSensor>.Filter.Lte(l => l.Timestamp, hasta)
         );
         var sort = Builders<LecturaSensor>.Sort.Descending(l => l.Timestamp);
-        return await _db.FindToListAsync(_db.LecturasSensores, filter, sort);
+        return await _db.FindToListAsync(_db.LecturasSensores, filter, sort, limit: MaxResultadosRango);
     }
 
     private void DecryptEventoLocation(EventoMetabolico? e)
@@ -365,11 +385,13 @@ public class SensorService
             ubicacionCifrada = _cripto.Encrypt($"{longitud.Value},{latitud.Value}");
         }
 
+        var nivelNormalizado = NormalizarNivelRiesgo(nivelRiesgo);
+
         var evento = new EventoMetabolico
         {
             PacienteId = pacienteId,
             ProbabilidadMl = probabilidad,
-            NivelRiesgo = nivelRiesgo,
+            NivelRiesgo = nivelNormalizado,
             Descripcion = descripcion,
             FechaEvento = DateTime.UtcNow,
             UbicacionGps = null,
@@ -495,7 +517,7 @@ public class SensorService
             Builders<TrackingGps>.Filter.Lte(t => t.Timestamp, hasta)
         );
         var sort = Builders<TrackingGps>.Sort.Descending(t => t.Timestamp);
-        var list = await _db.FindToListAsync(_db.TrackingGps, filter, sort);
+        var list = await _db.FindToListAsync(_db.TrackingGps, filter, sort, limit: MaxResultadosRango);
         foreach (var t in list) DecryptTrackingLocation(t);
         return list;
     }

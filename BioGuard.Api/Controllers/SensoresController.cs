@@ -38,6 +38,17 @@ public class SensoresController : ControllerBase
         _planLimiteService = planLimiteService;
     }
 
+    // Resuelve la MAC del dispositivo: prioriza la enviada por el cliente (request o header),
+    // luego variable de entorno, y por último un identificador por paciente (no global).
+    private string ResolverMac(string? macRequest, string pacienteId)
+    {
+        if (!string.IsNullOrWhiteSpace(macRequest)) return macRequest;
+        var header = Request.Headers["X-Device-Mac"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(header)) return header;
+        return Environment.GetEnvironmentVariable("BIOMETRIC_MAC_ADDRESS")
+            ?? $"dev-{pacienteId[..Math.Min(8, pacienteId.Length)]}";
+    }
+
     // ── Lecturas (Envío de datos) ─────────────────────────────
 
     [HttpPost("lectura")]
@@ -47,10 +58,10 @@ public class SensoresController : ControllerBase
         if (string.IsNullOrEmpty(pacienteId)) return Unauthorized();
 
         _logger.LogInformation("Receiving sensor reading for paciente: {PacienteId}", pacienteId);
-        var macAddress = Environment.GetEnvironmentVariable("BIOMETRIC_MAC_ADDRESS") ?? "wearos-001";
+        var macAddress = ResolverMac(request.DispositivoMac, pacienteId);
         var result = await _sensorService.InsertarLecturaAsync(
             pacienteId, macAddress, request.PulsoBpm, request.TemperaturaC,
-            request.SudoracionGsr, request.Hrv, request.Spo2);
+            request.SudoracionGsr, request.Hrv, request.Spo2, request.Timestamp);
 
         if (result == null)
             return BadRequest(new { message = "Lectura rechazada (rate limit o valores fuera de rango)" });
@@ -71,6 +82,7 @@ public class SensoresController : ControllerBase
     }
 
     [HttpPost("lectura-batch")]
+    [HttpPost("lecturas")]
     [RequestSizeLimit(10485760)]
     public async Task<IActionResult> RecibirLecturaBatch([FromBody] List<LecturaSensorRequest> request)
     {
@@ -81,13 +93,14 @@ public class SensoresController : ControllerBase
             return BadRequest(new { message = "Máximo 500 lecturas por lote" });
 
         _logger.LogInformation("Receiving batch of {Count} sensor readings for paciente: {PacienteId}", request.Count, pacienteId);
-        var macAddress = Environment.GetEnvironmentVariable("BIOMETRIC_MAC_ADDRESS") ?? "wearos-001";
         var count = 0;
         foreach (var lectura in request)
         {
+            var macAddress = ResolverMac(lectura.DispositivoMac, pacienteId);
             var result = await _sensorService.InsertarLecturaAsync(
                 pacienteId, macAddress, lectura.PulsoBpm, lectura.TemperaturaC,
-                lectura.SudoracionGsr, lectura.Hrv, lectura.Spo2);
+                lectura.SudoracionGsr, lectura.Hrv, lectura.Spo2, lectura.Timestamp,
+                bypassRateLimit: true);
             if (result != null) count++;
         }
 
@@ -248,12 +261,14 @@ public class SensoresController : ControllerBase
         if (string.IsNullOrEmpty(pacienteId)) return Unauthorized();
 
         _logger.LogInformation("Creating metabolic event for paciente: {PacienteId}, risk: {NivelRiesgo}", pacienteId, request.NivelRiesgo);
+        var probabilidad = request.Probabilidad ?? request.ProbabilidadMl ?? 0.0;
+        var nivelNormalizado = SensorService.NormalizarNivelRiesgo(request.NivelRiesgo);
         var evento = await _sensorService.CrearEventoAsync(
-            pacienteId, request.Probabilidad, request.NivelRiesgo, request.Descripcion,
+            pacienteId, probabilidad, nivelNormalizado, request.Descripcion,
             request.VariablesOrigen);
 
         var nivelesNotificables = new[] { "Moderado", "Alto", "Crítico" };
-        if (Array.Exists(nivelesNotificables, n => n.Equals(request.NivelRiesgo, StringComparison.OrdinalIgnoreCase)))
+        if (Array.Exists(nivelesNotificables, n => n.Equals(nivelNormalizado, StringComparison.OrdinalIgnoreCase)))
         {
             try
             {
@@ -520,7 +535,7 @@ public class SensoresController : ControllerBase
         }
 
         _logger.LogInformation("Inserting GPS tracking for paciente: {PacienteId}, emergency: {EsEmergencia}", pacienteId, request.EsEmergencia);
-        var macAddress = Environment.GetEnvironmentVariable("BIOMETRIC_MAC_ADDRESS") ?? "wearos-001";
+        var macAddress = ResolverMac(request.DispositivoMac, pacienteId);
         await _sensorService.InsertarTrackingAsync(
             pacienteId, macAddress, request.Longitud, request.Latitud, request.EsEmergencia);
 
@@ -556,9 +571,9 @@ public class SensoresController : ControllerBase
         }
 
         _logger.LogInformation("Inserting GPS batch of {Count} records for paciente: {PacienteId}", request.Count, pacienteId);
-        var macAddress = Environment.GetEnvironmentVariable("BIOMETRIC_MAC_ADDRESS") ?? "wearos-001";
         foreach (var track in request)
         {
+            var macAddress = ResolverMac(track.DispositivoMac, pacienteId);
             await _sensorService.InsertarTrackingAsync(
                 pacienteId, macAddress, track.Longitud, track.Latitud, track.EsEmergencia);
         }
@@ -573,6 +588,10 @@ public class SensoresController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
+        // Verificar propiedad ANTES de consultar estado de emergencia (evita information leakage)
+        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(pacienteId, usuarioId, role!))
+            return Forbid();
+
         if (role == "cuidador")
         {
             var nivelAcceso = User.FindFirst("nivel_acceso")?.Value;
@@ -584,12 +603,9 @@ public class SensoresController : ControllerBase
             }
         }
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(pacienteId, usuarioId, role!))
-            return Forbid();
-
         _logger.LogInformation("Fetching current GPS location for paciente: {PacienteId}", pacienteId);
         var ubicacion = await _sensorService.ObtenerUltimaUbicacionAsync(pacienteId);
-        if (ubicacion == null)
+        if (ubicacion?.Ubicacion?.Coordinates == null || ubicacion.Ubicacion.Coordinates.Length < 2)
         {
             _logger.LogWarning("No GPS location found for paciente: {PacienteId}", pacienteId);
             return NotFound(new { message = "Sin ubicación" });
@@ -625,11 +641,13 @@ public class SensoresController : ControllerBase
 
         _logger.LogInformation("Fetching GPS route for paciente: {PacienteId} from {Desde} to {Hasta}", pacienteId, desde, hasta);
         var puntos = await _sensorService.ObtenerTrackingRangoAsync(pacienteId, desde, hasta);
-        var response = puntos.Select(p => new TrackingResponse(
-            p.Ubicacion.Coordinates[0],
-            p.Ubicacion.Coordinates[1],
-            p.Timestamp,
-            p.EsEmergencia));
+        var response = puntos
+            .Where(p => p.Ubicacion?.Coordinates != null && p.Ubicacion.Coordinates.Length >= 2)
+            .Select(p => new TrackingResponse(
+                p.Ubicacion.Coordinates[0],
+                p.Ubicacion.Coordinates[1],
+                p.Timestamp,
+                p.EsEmergencia));
         return Ok(response);
     }
 }

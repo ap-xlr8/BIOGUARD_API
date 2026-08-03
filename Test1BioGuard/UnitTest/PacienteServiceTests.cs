@@ -111,7 +111,7 @@ public class PacienteServiceTests
             It.IsAny<CancellationToken>()))
             .Returns(Task.CompletedTask);
 
-        var (success, codigo, error) = await _service.CrearPacienteAsync(usuarioWebId, nombre);
+        var (success, codigo, pacienteId, error) = await _service.CrearPacienteAsync(usuarioWebId, nombre);
 
         success.Should().BeTrue();
         codigo.Should().NotBeNullOrEmpty();

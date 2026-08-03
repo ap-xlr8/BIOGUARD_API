@@ -99,7 +99,8 @@ public class CuidadoresController : ControllerBase
             _logger.LogWarning("Cuidador not found: {CuidadorId}", id);
             return NotFound();
         }
-        if (cuidador.UsuarioWebId != usuarioId)
+        // El cuidador autenticado por QR tiene como 'sub' su Cuidador.Id, no UsuarioWebId.
+        if (cuidador.UsuarioWebId != usuarioId && cuidador.Id != usuarioId)
         {
             _logger.LogWarning("Ownership check failed fetching cuidador - user: {UserId}, cuidador: {CuidadorId}", usuarioId, id);
             return Forbid();

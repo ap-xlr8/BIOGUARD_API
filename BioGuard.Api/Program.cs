@@ -78,6 +78,7 @@ builder.Services.AddScoped<IFCMService, FCMService>();
 builder.Services.AddScoped<IImageStorageService, ImgBbImageStorageService>();
 builder.Services.AddHttpClient<IImageStorageService, ImgBbImageStorageService>();
 builder.Services.AddScoped<IPaymentGateway, StripePaymentGateway>();
+builder.Services.AddScoped<IPaymentGateway, PayPalPaymentGateway>();
 
 // Durable Background Task Runner for critical alarms
 builder.Services.AddHostedService<EscalamientoBackgroundService>();
@@ -134,7 +135,7 @@ try
     await CreateTimeSeriesCollectionIfNotExistsAsync(mongoDbContext.Database, "lecturas_sensores", "timestamp", "meta");
     await CreateTimeSeriesCollectionIfNotExistsAsync(mongoDbContext.Database, "tracking_gps", "timestamp", "meta");
 
-    await CreateTtlIndex(mongoDbContext.LecturasSensores, "expireAt", 0);
+    await CreateTtlIndex(mongoDbContext.LecturasSensores, "timestamp", 2592000);
     await CreateTtlIndex(mongoDbContext.RefreshTokens, "expires_at", 0);
     await CreateTtlIndex(mongoDbContext.TokenBlacklist, "expires_at", 0);
     await CreateTtlIndex(mongoDbContext.FcmTokens, "fecha_registro", 7776000); // 90 days TTL
@@ -159,6 +160,13 @@ if (app.Environment.IsDevelopment())
 app.UseHsts();
 app.UseHttpsRedirection();
 app.UseCors("BioGuardPolicy");
+
+// Respetar X-Forwarded-For/Proto detrás de proxy para IP real (rate limiting, auditoría)
+app.UseForwardedHeaders(new ForwardedHeadersOptions
+{
+    ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
+        | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
+});
 
 // Rate limiting middleware
 app.UseIpRateLimiting();
@@ -192,7 +200,7 @@ app.MapGet("/health", async (IMongoDbContext db) =>
 // =============================================
 // SEED ENDPOINT (Conditional Auth)
 // =============================================
-var seedEndpoint = app.MapPost("/api/Seed/seed-all", async (IMongoDbContext db, ILogger<Program> logger, HttpContext httpContext) =>
+var seedEndpoint = app.MapPost("/api/Seed/seed-all", async (IMongoDbContext db, ILogger<Program> logger, HttpContext httpContext, CriptoService cripto) =>
 {
     if (!app.Environment.IsDevelopment())
         return Results.Forbid();
@@ -229,7 +237,10 @@ var seedEndpoint = app.MapPost("/api/Seed/seed-all", async (IMongoDbContext db, 
             };
             await SafeInsertMany(db.Planes, planes, "planes");
         }
-        var existingPlan = existingPlanGratis;
+        var existingPlan = existingPlanGratis
+            ?? await db.FindFirstOrDefaultAsync(db.Planes, p => p.Nombre == "BioGuard Free");
+        if (existingPlan == null)
+            return Results.Problem("No se pudo resolver el plan 'BioGuard Free' para el seed.");
 
         var rnd = new Random(Guid.NewGuid().GetHashCode());
         var macAddr = $"AA:BB:CC:{rnd.Next(0x10,0xFF):X2}:{rnd.Next(0x10,0xFF):X2}:{rnd.Next(0x10,0xFF):X2}";
@@ -285,11 +296,20 @@ var seedEndpoint = app.MapPost("/api/Seed/seed-all", async (IMongoDbContext db, 
         }
         await SafeInsertMany(db.EventosMetabolicos, eventos, "eventos");
 
+        // Alineado con producción: coordenadas cifradas, Ubicacion en claro vacío.
+        TrackingGps NuevoTrack(DateTime ts, double lon, double lat, bool emerg) => new()
+        {
+            Meta = new MetaData { PacienteId = paciente.Id, DispositivoMac = macAddr },
+            Timestamp = ts,
+            Ubicacion = new UbicacionGps(),
+            UbicacionCifrada = cripto.Encrypt($"{lon},{lat}"),
+            EsEmergencia = emerg
+        };
         await SafeInsertMany(db.TrackingGps, new List<TrackingGps>
         {
-            new() { Meta = new MetaData { PacienteId = paciente.Id, DispositivoMac = macAddr }, Timestamp = now.AddMinutes(-30), Ubicacion = new UbicacionGps { Coordinates = new[] { -99.1332, 19.4326 } }, EsEmergencia = false },
-            new() { Meta = new MetaData { PacienteId = paciente.Id, DispositivoMac = macAddr }, Timestamp = now.AddMinutes(-20), Ubicacion = new UbicacionGps { Coordinates = new[] { -99.1335, 19.4328 } }, EsEmergencia = false },
-            new() { Meta = new MetaData { PacienteId = paciente.Id, DispositivoMac = macAddr }, Timestamp = now.AddMinutes(-10), Ubicacion = new UbicacionGps { Coordinates = new[] { -99.1340, 19.4330 } }, EsEmergencia = true }
+            NuevoTrack(now.AddMinutes(-30), -99.1332, 19.4326, false),
+            NuevoTrack(now.AddMinutes(-20), -99.1335, 19.4328, false),
+            NuevoTrack(now.AddMinutes(-10), -99.1340, 19.4330, true)
         }, "tracking");
 
         var medNames = new[] { ("Metformina", "500mg", "08:00,20:00"), ("Insulina", "10 unidades", "07:00,13:00,19:00"), ("Losartan", "50mg", "09:00") };
@@ -353,7 +373,7 @@ var seedEndpoint = app.MapPost("/api/Seed/seed-all", async (IMongoDbContext db, 
         {
             message = "Seed data inserted",
             userId = user.Id, pacienteId = paciente.Id, cuidadorUserId = cuidadorUser.Id,
-            email = testEmail, password = "SeedTest@123!",
+            email = testEmail,
             skipped, stats = new { lecturas = lecturas.Count, eventos = eventos.Count, tracking = 3, medicamentos = medNames.Length, alertas = 3, notificaciones = 2, dispositivos = 1, cuidadores = 1, pagos = 1, modelos = 1, predicciones = 1 }
         });
     }
