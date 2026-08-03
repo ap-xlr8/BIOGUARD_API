@@ -26,6 +26,8 @@ services:
         value: Production
       - key: ASPNETCORE_URLS
         value: http://+:8080
+      - key: AllowedHosts
+        value: ${ALLOWED_HOSTS}
       - key: MONGODB_CONNECTION_STRING
         value: ${MONGODB_CONNECTION_STRING}
         type: SECRET

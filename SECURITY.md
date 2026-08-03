@@ -82,7 +82,7 @@ If you discover a security vulnerability in BioGuard, please report it responsib
 ## Scope
 
 This policy applies to:
-- **API Backend** (Api-BioGuard) - .NET 9 Web API
+- **API Backend** (Api-BioGuard) - .NET 10 Web API
 - **Docker Container** - Production deployment image
 - **CI/CD Pipeline** - GitHub Actions workflows
 

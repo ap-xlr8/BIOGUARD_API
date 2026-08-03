@@ -367,12 +367,25 @@ public class FlujosCompletosTests : IClassFixture<CustomWebApplicationFactory>
                 It.IsAny<System.Linq.Expressions.Expression<Func<Cuidador, bool>>>()))
             .ReturnsAsync(0L);
 
+        // Sin cuidadores existentes con ese correo para el paciente (si no, el servicio
+        // responde "Ya existe un cuidador con ese correo para este paciente").
+        _mockDb.Setup(db => db.FindFirstOrDefaultAsync(
+                It.IsAny<IMongoCollection<Cuidador>>(),
+                It.IsAny<System.Linq.Expressions.Expression<Func<Cuidador, bool>>>()))
+            .ReturnsAsync((Cuidador?)null);
+
         var crearReq = new CrearCuidadorRequest(pacienteId, "Pedro", "Hermano", "555-1234", "pedro@test.com");
         var crearResponse = await _client.PostAsJsonAsync("/api/Cuidadores", crearReq);
         crearResponse.StatusCode.Should().Be(HttpStatusCode.OK);
         var crearJson = await crearResponse.Content.ReadAsStringAsync();
         var crearDoc = JsonDocument.Parse(crearJson);
         crearDoc.RootElement.GetProperty("cuidadorId").GetString().Should().NotBeNullOrEmpty();
+
+        // El cuidador creado ahora existe: restaurar el mock para el login por QR.
+        _mockDb.Setup(db => db.FindFirstOrDefaultAsync(
+                It.IsAny<IMongoCollection<Cuidador>>(),
+                It.IsAny<System.Linq.Expressions.Expression<Func<Cuidador, bool>>>()))
+            .ReturnsAsync(cuidador);
 
         // -- Step 2: Get QR code --
         var qrResponse = await _client.GetAsync($"/api/Cuidadores/{cuidadorId}/qr");
@@ -946,9 +959,23 @@ public class FlujosCompletosTests : IClassFixture<CustomWebApplicationFactory>
         var lecturasResponse = await _client.GetAsync($"/api/Sensores/lecturas/{pacienteId}");
         lecturasResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
 
-        // -- Test 2: Admin endpoint (dueno has access to metricas) --
+        // -- Test 2: Admin endpoint is admin-only (dueno debe recibir 403) --
         var metricasResponse = await _client.GetAsync("/api/Admin/metricas");
-        metricasResponse.StatusCode.Should().Be(HttpStatusCode.OK);
+        metricasResponse.StatusCode.Should().Be(HttpStatusCode.Forbidden);
+
+        // -- Test 2b: Token de administrador sí accede a metricas --
+        _mockDb.Setup(db => db.FindToListAsync(
+                It.IsAny<IMongoCollection<Plan>>(),
+                It.IsAny<System.Linq.Expressions.Expression<Func<Plan, bool>>>()))
+            .ReturnsAsync(new List<Plan>
+            {
+                new() { Id = "plan_free", Nombre = "Gratis", Activo = true }
+            });
+
+        _client.DefaultRequestHeaders.Authorization =
+            new("Bearer", TestTokenHelper.GenerateToken("admin_seg", "administrador"));
+        var metricasAdminResponse = await _client.GetAsync("/api/Admin/metricas");
+        metricasAdminResponse.StatusCode.Should().Be(HttpStatusCode.OK);
 
         // -- Test 3: Unauthenticated access (should 401) --
         _client.DefaultRequestHeaders.Clear();

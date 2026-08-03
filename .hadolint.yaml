@@ -2,7 +2,7 @@ failure-threshold: warning
 format: json
 
 override:
-  - image: mcr.microsoft.com/dotnet/aspnet:9.0
+  - image: mcr.microsoft.com/dotnet/aspnet:10.0
     rules:
       DL3007: warning
       DL3042: warning

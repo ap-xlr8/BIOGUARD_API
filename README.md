@@ -11,8 +11,8 @@ API RESTful para el ecosistema medico IoT **BioGuard**. Gestiona pacientes con e
                     +--------+----------+
                              |
                     +--------v----------+
-                    |   .NET 9 API      |  Backend (este repositorio)
-                    |   85+ endpoints   |
+                    |   .NET 10 API     |  Backend (este repositorio)
+                    |   130+ endpoints  |
                     +--------+----------+
                              |
               +--------------+--------------+
@@ -35,7 +35,7 @@ API RESTful para el ecosistema medico IoT **BioGuard**. Gestiona pacientes con e
 
 | Repositorio | Tecnologia | Descripcion |
 |---|---|---|
-| **Api-BioGuard** | .NET 9 / C# | Backend API RESTful (este repo) |
+| **Api-BioGuard** | .NET 10 / C# | Backend API RESTful (este repo) |
 | **Movil** | Kotlin / Android | App movil paciente + cuidador |
 | **Web** | React / Next.js | Dashboard web para cuidadores |
 | **WearOS** | Kotlin / Wear OS | App para reloj WearOS |
@@ -45,7 +45,7 @@ API RESTful para el ecosistema medico IoT **BioGuard**. Gestiona pacientes con e
 
 | Capa | Tecnologia | Version |
 |---|---|---|
-| Runtime | .NET | 9.0 |
+| Runtime | .NET | 10.0 |
 | Lenguaje | C# | 13 |
 | Base de datos | MongoDB Atlas | 7.0+ |
 | MongoDB Driver | MongoDB.Driver | 3.10.0 |
@@ -57,7 +57,7 @@ API RESTful para el ecosistema medico IoT **BioGuard**. Gestiona pacientes con e
 | CI/CD | GitHub Actions | |
 | Deploy | DigitalOcean App Platform | |
 | API Docs | Swagger / OpenAPI | |
-| Tests | xUnit + FluentAssertions | 423 tests |
+| Tests | xUnit + FluentAssertions | 532 tests |
 
 ## Funcionalidades
 
@@ -223,7 +223,7 @@ BioGuard.Api/
 ├── Program.cs             # Pipeline: auth, CORS, rate limit, headers
 ├── appsettings.json       # Configuracion + JWT secrets
 ├── Dockerfile             # Multi-stage build
-└── BioGuard.Api.csproj    # .NET 9 project
+└── BioGuard.Api.csproj    # .NET 10 project
 ```
 
 ## Base de Datos (MongoDB Atlas)
@@ -473,7 +473,7 @@ docker run -p 5000:8080 \
 
 ### CI/CD Pipeline (GitHub Actions)
 
-1. **Build & Test**: Compila, corre 423 tests, genera coverage
+1. **Build & Test**: Compila, corre 532 tests, genera coverage
 2. **CodeQL Analysis**: Analisis estatico de seguridad
 3. **Docker Build**: Build multi-stage, push a GitHub Container Registry
 4. **Deploy**: DigitalOcean App Platform (auto-deploy desde master)

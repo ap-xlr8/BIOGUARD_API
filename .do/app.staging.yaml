@@ -26,6 +26,8 @@ services:
         value: Staging
       - key: ASPNETCORE_URLS
         value: http://+:8080
+      - key: AllowedHosts
+        value: ${STAGING_ALLOWED_HOSTS}
       - key: MONGODB_CONNECTION_STRING
         value: ${STAGING_MONGODB_CONNECTION_STRING}
         type: SECRET

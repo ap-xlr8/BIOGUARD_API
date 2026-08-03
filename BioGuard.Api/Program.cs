@@ -37,6 +37,14 @@ builder.Services.AddSingleton<MongoDbContext>();
 builder.Services.AddSingleton<IMongoDbContext>(sp => sp.GetRequiredService<MongoDbContext>());
 
 // =============================================
+// QUESTPDF LICENSE (generación de PDFs)
+// =============================================
+// Community: gratuita para empresas con < $1M de ingresos anuales.
+// Para una licencia de producción comercial, sustituir por LicenseType.Production
+// con la key emitida por QuestPDF y centralizarla en variables de entorno.
+QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
+
+// =============================================
 // SERVICE CONFIGURATIONS (via Extension Methods)
 // =============================================
 builder.Services.ConfigureJwtAuthentication(builder.Configuration, jwtKey);

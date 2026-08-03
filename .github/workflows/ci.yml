@@ -71,6 +71,26 @@ jobs:
       - name: Run Unit Tests
         run: dotnet test ${{ env.TEST_PATH }} --configuration Release --no-build --filter "FullyQualifiedName!~IntegrationTests" --logger "trx;LogFileName=unit-tests.trx" --collect:"XPlat Code Coverage"
 
+      - name: Enforce Coverage Threshold
+        env:
+          COVERAGE_THRESHOLD: ${{ vars.COVERAGE_THRESHOLD || '60' }}
+        run: |
+          echo "Coverage threshold: ${COVERAGE_THRESHOLD}%"
+          TOTAL=0; COVERED=0
+          for f in $(find . -name "coverage.cobertura.xml"); do
+            tv=$(grep -o 'lines-valid="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+            cv=$(grep -o 'lines-covered="[0-9]*"' "$f" | head -1 | grep -o '[0-9]*')
+            TOTAL=$((TOTAL + ${tv:-0})); COVERED=$((COVERED + ${cv:-0}))
+          done
+          if [ "$TOTAL" -eq 0 ]; then echo "::error::No coverage data found"; exit 1; fi
+          PCT=$((COVERED * 100 / TOTAL))
+          echo "Line coverage: ${COVERED}/${TOTAL} = ${PCT}%"
+          if [ "$PCT" -lt "$COVERAGE_THRESHOLD" ]; then
+            echo "::error::Coverage ${PCT}% is below threshold ${COVERAGE_THRESHOLD}%"
+            exit 1
+          fi
+          echo "Coverage OK"
+
       - name: Run Integration Tests
         run: dotnet test ${{ env.TEST_PATH }} --configuration Release --no-build --filter "FullyQualifiedName~IntegrationTests" --logger "trx;LogFileName=integration-tests.trx"
 
