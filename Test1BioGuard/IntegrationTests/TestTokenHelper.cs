@@ -6,7 +6,7 @@ namespace Test1BioGuard.IntegrationTests;
 
 public static class TestTokenHelper
 {
-    private const string JwtKey = "BioGuard2024SecretKeyForJWTAuthentication!@#$%^&*()";
+    private const string JwtKey = "BioGuard-Test-Secret-Key-Only-For-Unit-Tests-0123456789";
     private const string Issuer = "BioGuardApi";
     private const string Audience = "BioGuardApp";
 
@@ -40,6 +40,9 @@ public static class TestTokenHelper
 
     public static string GenerateDuenoToken(string userId = "user123")
         => GenerateToken(userId, "dueno");
+
+    public static string GenerateAdminToken(string userId = "admin123")
+        => GenerateToken(userId, "administrador");
 
     public static string GeneratePacienteToken(string pacienteId)
         => GenerateToken(pacienteId, "paciente", new() { { "paciente_id", pacienteId } });

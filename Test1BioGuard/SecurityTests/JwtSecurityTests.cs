@@ -14,11 +14,11 @@ public class JwtSecurityTests
 
     public JwtSecurityTests()
     {
-        Environment.SetEnvironmentVariable("JWT_SECRET_KEY", "BioGuard2024SecretKeyForJWTAuthentication!@#$%^&*()");
+        Environment.SetEnvironmentVariable("JWT_SECRET_KEY", "BioGuard-Test-Secret-Key-Only-For-Unit-Tests-0123456789");
 
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Jwt:Key"] = "BioGuard2024SecretKeyForJWTAuthentication!@#$%^&*()",
+            ["Jwt:Key"] = "BioGuard-Test-Secret-Key-Only-For-Unit-Tests-0123456789",
             ["Jwt:Issuer"] = "BioGuardApi",
             ["Jwt:Audience"] = "BioGuardApp",
             ["Jwt:ExpirationMinutes"] = "60"
@@ -122,7 +122,7 @@ public class JwtSecurityTests
             ValidIssuer = "BioGuardApi",
             ValidAudience = "BioGuardApp",
             IssuerSigningKey = new SymmetricSecurityKey(
-                System.Text.Encoding.UTF8.GetBytes("BioGuard2024SecretKeyForJWTAuthentication!@#$%^&*()"))
+                System.Text.Encoding.UTF8.GetBytes("BioGuard-Test-Secret-Key-Only-For-Unit-Tests-0123456789"))
         };
 
         var principal = handler.ValidateToken(token, validationParams, out _);

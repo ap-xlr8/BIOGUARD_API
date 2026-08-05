@@ -61,7 +61,7 @@ public class SensoresController : ControllerBase
         var macAddress = ResolverMac(request.DispositivoMac, pacienteId);
         var result = await _sensorService.InsertarLecturaAsync(
             pacienteId, macAddress, request.PulsoBpm, request.TemperaturaC,
-            request.SudoracionGsr, request.Hrv, request.Spo2, request.Timestamp);
+            request.SudoracionGsr, request.Hrv, request.Spo2, request.Timestamp, esSimulado: request.EsSimulado);
 
         if (result == null)
             return BadRequest(new { message = "Lectura rechazada (rate limit o valores fuera de rango)" });
@@ -116,7 +116,7 @@ public class SensoresController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(pacienteId, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(pacienteId, usuarioId, role!, OwnershipHelper.NivelResumenSemanal, User.FindFirst("nivel_acceso")?.Value))
         {
             _logger.LogWarning("Ownership check failed fetching readings - user: {UserId}, paciente: {PacienteId}", usuarioId, pacienteId);
             return Forbid();
@@ -148,7 +148,7 @@ public class SensoresController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(pacienteId, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(pacienteId, usuarioId, role!, OwnershipHelper.NivelResumenSemanal, User.FindFirst("nivel_acceso")?.Value))
         {
             _logger.LogWarning("Ownership check failed fetching readings range - user: {UserId}, paciente: {PacienteId}", usuarioId, pacienteId);
             return Forbid();
@@ -186,7 +186,7 @@ public class SensoresController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(pacienteId, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(pacienteId, usuarioId, role!, OwnershipHelper.NivelResumenSemanal, User.FindFirst("nivel_acceso")?.Value))
         {
             _logger.LogWarning("Ownership check failed fetching stats - user: {UserId}, paciente: {PacienteId}", usuarioId, pacienteId);
             return Forbid();
@@ -226,7 +226,7 @@ public class SensoresController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(pacienteId, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(pacienteId, usuarioId, role!, OwnershipHelper.NivelResumenSemanal, User.FindFirst("nivel_acceso")?.Value))
         {
             _logger.LogWarning("Ownership check failed fetching trend - user: {UserId}, paciente: {PacienteId}", usuarioId, pacienteId);
             return Forbid();
@@ -285,6 +285,7 @@ public class SensoresController : ControllerBase
     }
 
     [HttpPost("evento-sos")]
+    [System.Obsolete("Use [HttpPost(\"evento\")] instead.")]
     public async Task<IActionResult> CrearEventoSos([FromBody] CrearEventoRequest request)
     {
         return BadRequest(new { message = "Funcionalidad en mantenimiento. Usa el endpoint /evento en su lugar." });
@@ -297,7 +298,7 @@ public class SensoresController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(pacienteId, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(pacienteId, usuarioId, role!, OwnershipHelper.NivelResumenSemanal, User.FindFirst("nivel_acceso")?.Value))
         {
             _logger.LogWarning("Ownership check failed fetching events - user: {UserId}, paciente: {PacienteId}", usuarioId, pacienteId);
             return Forbid();
@@ -318,7 +319,7 @@ public class SensoresController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(pacienteId, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(pacienteId, usuarioId, role!, OwnershipHelper.NivelResumenSemanal, User.FindFirst("nivel_acceso")?.Value))
         {
             _logger.LogWarning("Ownership check failed fetching event summary - user: {UserId}, paciente: {PacienteId}", usuarioId, pacienteId);
             return Forbid();
@@ -346,7 +347,7 @@ public class SensoresController : ControllerBase
         var evento = await _sensorService.ObtenerEventoPorIdAsync(eventoId);
         if (evento == null) return NotFound();
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(evento.PacienteId, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(evento.PacienteId, usuarioId, role!, OwnershipHelper.NivelResumenSemanal, User.FindFirst("nivel_acceso")?.Value))
             return Forbid();
 
         _logger.LogInformation("Marking event as attended: {EventoId}, cuidador: {CuidadorId}", eventoId, request.CuidadorId);
@@ -369,15 +370,8 @@ public class SensoresController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(pacienteId, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(pacienteId, usuarioId, role!, OwnershipHelper.NivelHistorialCompleto, User.FindFirst("nivel_acceso")?.Value))
             return Forbid();
-
-        if (role == "cuidador")
-        {
-            var nivelAcceso = User.FindFirst("nivel_acceso")?.Value;
-            if (nivelAcceso != "historial_completo")
-                return Forbid();
-        }
 
         var hastaDt = hasta ?? DateTime.UtcNow;
         var desdeDt = desde ?? hastaDt.AddDays(-30);
@@ -629,14 +623,7 @@ public class SensoresController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (role == "cuidador")
-        {
-            var nivelAcceso = User.FindFirst("nivel_acceso")?.Value;
-            if (nivelAcceso != "historial_completo")
-                return Forbid();
-        }
-
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(pacienteId, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(pacienteId, usuarioId, role!, OwnershipHelper.NivelHistorialCompleto, User.FindFirst("nivel_acceso")?.Value))
             return Forbid();
 
         _logger.LogInformation("Fetching GPS route for paciente: {PacienteId} from {Desde} to {Hasta}", pacienteId, desde, hasta);

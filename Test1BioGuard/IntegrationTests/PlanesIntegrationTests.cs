@@ -216,7 +216,7 @@ public class PlanesIntegrationTests : IClassFixture<CustomWebApplicationFactory>
 
         _client.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
-                TestTokenHelper.GenerateDuenoToken());
+                TestTokenHelper.GenerateAdminToken());
 
         var request = new
         {
@@ -256,7 +256,7 @@ public class PlanesIntegrationTests : IClassFixture<CustomWebApplicationFactory>
 
         _client.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
-                TestTokenHelper.GenerateDuenoToken());
+                TestTokenHelper.GenerateAdminToken());
 
         var request = new
         {
@@ -285,7 +285,7 @@ public class PlanesIntegrationTests : IClassFixture<CustomWebApplicationFactory>
 
         _client.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
-                TestTokenHelper.GenerateDuenoToken());
+                TestTokenHelper.GenerateAdminToken());
 
         var response = await _client.DeleteAsync("/api/Planes/plan1");
 
@@ -310,14 +310,14 @@ public class PlanesIntegrationTests : IClassFixture<CustomWebApplicationFactory>
 
         _client.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
-                TestTokenHelper.GenerateDuenoToken());
+                TestTokenHelper.GenerateAdminToken());
 
         var response = await _client.PostAsJsonAsync("/api/Planes/seed", new { });
 
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var json = await response.Content.ReadAsStringAsync();
         var doc = JsonDocument.Parse(json);
-        doc.RootElement.GetProperty("total").GetInt32().Should().Be(5);
+        doc.RootElement.GetProperty("total").GetInt32().Should().Be(3);
     }
 
     [Fact]
@@ -332,7 +332,7 @@ public class PlanesIntegrationTests : IClassFixture<CustomWebApplicationFactory>
 
         _client.DefaultRequestHeaders.Authorization =
             new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",
-                TestTokenHelper.GenerateDuenoToken());
+                TestTokenHelper.GenerateAdminToken());
 
         var response = await _client.PostAsJsonAsync("/api/Planes/seed", new { });
 

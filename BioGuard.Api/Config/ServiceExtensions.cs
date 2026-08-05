@@ -129,14 +129,14 @@ public static class ServiceExtensions
                 if (allowedOrigins.Length > 0)
                 {
                     policy.WithOrigins(allowedOrigins)
-                          .WithMethods("GET", "POST", "PUT", "DELETE")
+                          .WithMethods("GET", "POST", "PUT", "DELETE", "PATCH")
                           .WithHeaders("Authorization", "Content-Type", "Accept")
                           .AllowCredentials();
                 }
                 else
                 {
                     policy.WithOrigins("https://bioguard.app")
-                          .WithMethods("GET", "POST", "PUT", "DELETE")
+                          .WithMethods("GET", "POST", "PUT", "DELETE", "PATCH")
                           .WithHeaders("Authorization", "Content-Type", "Accept")
                           .AllowCredentials();
                 }

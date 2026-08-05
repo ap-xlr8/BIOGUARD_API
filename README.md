@@ -433,6 +433,13 @@ BioGuard.Api/
 
 ## Despliegue
 
+### Documentacion de Operaciones
+
+| Documento | Contenido |
+|---|---|
+| `docs/RUNBOOK_PRODUCCION.md` | Despliegue, monitoreo, troubleshooting y rollback |
+| `docs/ROTACION_SECRETOS.md` | Rotacion de claves y secretos por entorno |
+
 ### URL de Produccion
 
 ```

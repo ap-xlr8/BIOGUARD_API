@@ -16,11 +16,11 @@ public class RefreshTokenTests
 
     public RefreshTokenTests()
     {
-        Environment.SetEnvironmentVariable("JWT_SECRET_KEY", "BioGuard2024SecretKeyForJWTAuthentication!@#$%^&*()");
+        Environment.SetEnvironmentVariable("JWT_SECRET_KEY", "BioGuard-Test-Secret-Key-Only-For-Unit-Tests-0123456789");
 
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Jwt:Key"] = "BioGuard2024SecretKeyForJWTAuthentication!@#$%^&*()",
+                ["Jwt:Key"] = "BioGuard-Test-Secret-Key-Only-For-Unit-Tests-0123456789",
                 ["Jwt:Issuer"] = "BioGuardApi",
                 ["Jwt:Audience"] = "BioGuardApp",
                 ["Jwt:ExpirationMinutes"] = "60",
@@ -93,9 +93,9 @@ public class RefreshTokenTests
         lengths.Distinct().Count().Should().Be(1);
     }
 
-    // ═══════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
     // REFRESH TOKEN REUSE & ROTATION TESTS
-    // ═══════════════════════════════════════════════════════════════
+    // â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
     [Fact]
     public async Task RefreshToken_ReutilizarTokenRevocado_RetornaNull()

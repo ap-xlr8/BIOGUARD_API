@@ -62,7 +62,7 @@ public class PacientesController : ControllerBase
 
         return Ok(new PacienteResponse(
             paciente.Id, paciente.Nombre, paciente.Biometria?.EsDiabetico ?? false,
-            paciente.PerfilCompletado));
+            paciente.PerfilCompletado, paciente.CodigoAccesoQr));
     }
 
     /// <summary>
@@ -76,7 +76,7 @@ public class PacientesController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(id, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(id, usuarioId, role!, OwnershipHelper.NivelResumenSemanal, User.FindFirst("nivel_acceso")?.Value))
         {
             _logger.LogWarning("Ownership check failed for user: {UserId}, paciente: {PacienteId}, role: {Role}", usuarioId, id, role);
             return Forbid();
@@ -92,7 +92,7 @@ public class PacientesController : ControllerBase
 
         return Ok(new PacienteResponse(
             paciente.Id, paciente.Nombre, paciente.Biometria?.EsDiabetico ?? false,
-            paciente.PerfilCompletado));
+            paciente.PerfilCompletado, paciente.CodigoAccesoQr));
     }
 
     /// <summary>
@@ -116,7 +116,7 @@ public class PacientesController : ControllerBase
         var pacientes = await _pacienteService.GetAllByUsuarioAsync(usuarioWebId);
         var response = pacientes.Select(p => new PacienteResponse(
             p.Id, p.Nombre, p.Biometria?.EsDiabetico ?? false,
-            p.PerfilCompletado)).ToList();
+            p.PerfilCompletado, p.CodigoAccesoQr)).ToList();
         return Ok(response);
     }
 
@@ -219,7 +219,7 @@ public class PacientesController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(id, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(id, usuarioId, role!, OwnershipHelper.NivelHistorialCompleto, User.FindFirst("nivel_acceso")?.Value))
         {
             _logger.LogWarning("Ownership check failed updating biometria - user: {UserId}, paciente: {PacienteId}", usuarioId, id);
             return Forbid();
@@ -244,7 +244,7 @@ public class PacientesController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(id, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(id, usuarioId, role!, OwnershipHelper.NivelHistorialCompleto, User.FindFirst("nivel_acceso")?.Value))
         {
             _logger.LogWarning("Ownership check failed fetching QR - user: {UserId}, paciente: {PacienteId}", usuarioId, id);
             return Forbid();
@@ -317,7 +317,7 @@ public class PacientesController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(id, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(id, usuarioId, role!, OwnershipHelper.NivelResumenSemanal, User.FindFirst("nivel_acceso")?.Value))
         {
             _logger.LogWarning("Ownership check failed fetching device - user: {UserId}, paciente: {PacienteId}", usuarioId, id);
             return Forbid();
@@ -347,7 +347,7 @@ public class PacientesController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(id, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(id, usuarioId, role!, OwnershipHelper.NivelResumenSemanal, User.FindFirst("nivel_acceso")?.Value))
         {
             _logger.LogWarning("Ownership check failed fetching dashboard summary - user: {UserId}, paciente: {PacienteId}", usuarioId, id);
             return Forbid();

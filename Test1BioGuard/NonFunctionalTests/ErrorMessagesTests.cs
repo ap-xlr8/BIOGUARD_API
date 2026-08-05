@@ -249,7 +249,7 @@ public class ErrorMessagesTests : IClassFixture<CustomWebApplicationFactory>
     public async Task Planes_Seed_YaExisten_Retorna400ConMessage()
     {
         _client.DefaultRequestHeaders.Authorization =
-            new("Bearer", TestTokenHelper.GenerateDuenoToken(DuenoId));
+            new("Bearer", TestTokenHelper.GenerateAdminToken(DuenoId));
 
         var planesExistentes = new List<Plan>
         {

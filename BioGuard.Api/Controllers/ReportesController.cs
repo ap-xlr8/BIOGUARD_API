@@ -50,13 +50,7 @@ public class ReportesController : ControllerBase
         var usuarioId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId) || string.IsNullOrEmpty(role)) return false;
-        if (role == "cuidador")
-        {
-            var nivelAcceso = User.FindFirst("nivel_acceso")?.Value;
-            if (nivelAcceso != "resumen_semanal" && nivelAcceso != "historial_completo")
-                return false;
-        }
-        return await _ownershipHelper.VerifyPacienteOwnershipAsync(pacienteId, usuarioId, role);
+        return await _ownershipHelper.VerifyPacienteAccessAsync(pacienteId, usuarioId, role, OwnershipHelper.NivelResumenSemanal, User.FindFirst("nivel_acceso")?.Value);
     }
 
     // GET /api/Reportes/resumen/{pacienteId}

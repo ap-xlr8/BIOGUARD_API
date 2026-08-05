@@ -77,7 +77,7 @@ public class DispositivosController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(pacienteId, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(pacienteId, usuarioId, role!, OwnershipHelper.NivelResumenSemanal, User.FindFirst("nivel_acceso")?.Value))
             return Forbid();
 
         _logger.LogInformation("Getting device for patient {PacienteId}", pacienteId);
@@ -147,7 +147,7 @@ public class DispositivosController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(pacienteId, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(pacienteId, usuarioId, role!, OwnershipHelper.NivelResumenSemanal, User.FindFirst("nivel_acceso")?.Value))
             return Forbid();
 
         _logger.LogInformation("Getting full device info for patient {PacienteId}", pacienteId);

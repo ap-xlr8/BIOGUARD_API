@@ -57,14 +57,12 @@ public class AuthService
         var plan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Nombre == request.PlanNombre);
         if (plan == null)
         {
-            // Match case-insensitive + aliases comunes (ej. móvil envía "Gratis")
+            // Match case-insensitive + aliases (planes actuales: Gratis/Familiar/Pro)
             var alias = request.PlanNombre.Trim().ToLowerInvariant() switch
             {
-                "gratis" or "free" or "bio guard free" => "BioGuard Free",
-                "plus" => "BioGuard Plus",
-                "care" => "BioGuard Care",
-                "family" or "familia" => "BioGuard Family",
-                "pro" or "pro salud" or "prosalud" => "Pro Salud",
+                "gratis" or "free" or "bio guard free" => "Gratis",
+                "familiar" or "family" or "familia" or "plus" or "care" => "Familiar",
+                "pro" or "pro salud" or "prosalud" => "Pro",
                 _ => request.PlanNombre
             };
             plan = await _db.FindFirstOrDefaultAsync(_db.Planes,
@@ -189,7 +187,7 @@ public class AuthService
 
         if (user == null)
         {
-            var plan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Nombre == "BioGuard Free");
+            var plan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Nombre == "Gratis");
             if (plan == null) return null;
 
             user = new UsuarioWeb

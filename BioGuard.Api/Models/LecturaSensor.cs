@@ -36,6 +36,9 @@ public class LecturaSensor
     [BsonElement("spo2")]
     public int? Spo2 { get; set; }
 
+    [BsonElement("es_simulado")]
+    public bool? EsSimulado { get; set; }
+
     [BsonElement("expireAt")]
     public DateTime ExpireAt { get; set; }
 

@@ -59,7 +59,7 @@ public record LogoutAllRequest(string? UsuarioObjetivoId = null);
 
 public record PacienteResponse(
     string Id, string Nombre, bool EsDiabetico,
-    bool PerfilCompletado);
+    bool PerfilCompletado, string CodigoAccesoQr = "");
 
 public record UpdateBiometriaRequest(
     [Required] DateTime FechaNacimiento,
@@ -78,7 +78,7 @@ public record UpdateNombreRequest(
 
 public record CuidadorResponse(
     string Id, string Nombre, string Parentesco,
-    string PacienteId, string NivelAcceso = "solo_alertas");
+    string PacienteId, string NivelAcceso = "solo_alertas", string CodigoAccesoQr = "");
 
 public record CrearCuidadorRequest(
     [Required] string PacienteId,
@@ -105,7 +105,8 @@ public record LecturaSensorRequest(
     [Range(0, 200)] double? Hrv = null,
     [Range(50, 100)] int? Spo2 = null,
     DateTime? Timestamp = null,
-    [StringLength(50)] string? DispositivoMac = null);
+    [StringLength(50)] string? DispositivoMac = null,
+    bool? EsSimulado = null);
 
 public record EventoMetabolicoResponse(
     string Id, string NivelRiesgo, double ProbabilidadMl,

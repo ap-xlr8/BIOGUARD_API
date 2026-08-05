@@ -34,19 +34,7 @@ public class MLController : ControllerBase
     private string? GetUsuarioId() => User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
     private string? GetRole() => User.FindFirst(ClaimTypes.Role)?.Value;
 
-    private async Task<bool> VerifyPacienteAccessAsync(string pacienteId)
-    {
-        var usuarioId = GetUsuarioId();
-        var role = GetRole();
-        if (string.IsNullOrEmpty(usuarioId) || string.IsNullOrEmpty(role)) return false;
-        if (role == "cuidador")
-        {
-            var nivelAcceso = User.FindFirst("nivel_acceso")?.Value;
-            if (nivelAcceso != "resumen_semanal" && nivelAcceso != "historial_completo")
-                return false;
-        }
-        return await _ownershipHelper.VerifyPacienteOwnershipAsync(pacienteId, usuarioId, role);
-    }
+    private string? GetNivelAcceso() => User.FindFirst("nivel_acceso")?.Value;
 
     private async Task<bool> VerifyAiConsoleAccessAsync(string usuarioId)
     {
@@ -62,8 +50,9 @@ public class MLController : ControllerBase
     public async Task<IActionResult> ObtenerPredicciones(string pacienteId)
     {
         var usuarioId = GetUsuarioId();
-        if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
-        if (!await VerifyPacienteAccessAsync(pacienteId)) return Forbid();
+        var role = GetRole();
+        if (string.IsNullOrEmpty(usuarioId) || string.IsNullOrEmpty(role)) return Unauthorized();
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(pacienteId, usuarioId, role, OwnershipHelper.NivelResumenSemanal, GetNivelAcceso())) return Forbid();
 
         _logger.LogInformation("Getting ML predictions for patient {PacienteId}", pacienteId);
         var predicciones = await _mlService.ObtenerPrediccionesAsync(pacienteId);
@@ -86,8 +75,9 @@ public class MLController : ControllerBase
     public async Task<IActionResult> PrediccionActual(string pacienteId)
     {
         var usuarioId = GetUsuarioId();
-        if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
-        if (!await VerifyPacienteAccessAsync(pacienteId)) return Forbid();
+        var role = GetRole();
+        if (string.IsNullOrEmpty(usuarioId) || string.IsNullOrEmpty(role)) return Unauthorized();
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(pacienteId, usuarioId, role, OwnershipHelper.NivelResumenSemanal, GetNivelAcceso())) return Forbid();
 
         _logger.LogInformation("Getting current ML prediction for patient {PacienteId}", pacienteId);
         var prediccion = await _mlService.ObtenerPrediccionActualAsync(pacienteId);
@@ -113,8 +103,9 @@ public class MLController : ControllerBase
     public async Task<IActionResult> Recomendaciones(string pacienteId)
     {
         var usuarioId = GetUsuarioId();
-        if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
-        if (!await VerifyPacienteAccessAsync(pacienteId)) return Forbid();
+        var role = GetRole();
+        if (string.IsNullOrEmpty(usuarioId) || string.IsNullOrEmpty(role)) return Unauthorized();
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(pacienteId, usuarioId, role, OwnershipHelper.NivelResumenSemanal, GetNivelAcceso())) return Forbid();
 
         _logger.LogInformation("Getting recommendations for patient {PacienteId}", pacienteId);
         var recomendaciones = await _mlService.ObtenerRecomendacionesAsync(pacienteId);
@@ -221,8 +212,9 @@ public class MLController : ControllerBase
     public async Task<IActionResult> Diagnosticar([FromBody] DiagnosticarRequest request)
     {
         var usuarioId = GetUsuarioId();
-        if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
-        if (!await VerifyPacienteAccessAsync(request.PacienteId)) return Forbid();
+        var role = GetRole();
+        if (string.IsNullOrEmpty(usuarioId) || string.IsNullOrEmpty(role)) return Unauthorized();
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(request.PacienteId, usuarioId, role, OwnershipHelper.NivelResumenSemanal, GetNivelAcceso())) return Forbid();
 
         _logger.LogInformation("Running ML diagnosis for patient {PacienteId}", request.PacienteId);
         var predicciones = await _mlService.ObtenerPrediccionesAsync(request.PacienteId);

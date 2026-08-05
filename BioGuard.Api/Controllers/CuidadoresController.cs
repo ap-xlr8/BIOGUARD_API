@@ -52,7 +52,7 @@ public class CuidadoresController : ControllerBase
         _logger.LogInformation("Listing cuidadores for user: {UserId}", usuarioId);
         var cuidadores = await _cuidadorService.ObtenerPorUsuarioAsync(usuarioId);
         var response = cuidadores.Select(c => new CuidadorResponse(
-            c.Id, c.Nombre, c.Parentesco, c.PacienteId, c.NivelAcceso)).ToList();
+            c.Id, c.Nombre, c.Parentesco, c.PacienteId, c.NivelAcceso, c.CodigoAccesoQr)).ToList();
         return Ok(response);
     }
 
@@ -108,7 +108,7 @@ public class CuidadoresController : ControllerBase
 
         return Ok(new CuidadorResponse(
             cuidador.Id, cuidador.Nombre, cuidador.Parentesco,
-            cuidador.PacienteId, cuidador.NivelAcceso));
+            cuidador.PacienteId, cuidador.NivelAcceso, cuidador.CodigoAccesoQr));
     }
 
     /// <summary>
@@ -122,7 +122,7 @@ public class CuidadoresController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(pacienteId, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(pacienteId, usuarioId, role!, OwnershipHelper.NivelHistorialCompleto, User.FindFirst("nivel_acceso")?.Value))
         {
             _logger.LogWarning("Ownership check failed fetching cuidadores by paciente - user: {UserId}, paciente: {PacienteId}", usuarioId, pacienteId);
             return Forbid();
@@ -131,7 +131,7 @@ public class CuidadoresController : ControllerBase
         _logger.LogInformation("Fetching cuidadores for paciente: {PacienteId}", pacienteId);
         var cuidadores = await _cuidadorService.ObtenerPorPacienteAsync(pacienteId);
         var response = cuidadores.Select(c => new CuidadorResponse(
-            c.Id, c.Nombre, c.Parentesco, c.PacienteId, c.NivelAcceso)).ToList();
+            c.Id, c.Nombre, c.Parentesco, c.PacienteId, c.NivelAcceso, c.CodigoAccesoQr)).ToList();
         return Ok(response);
     }
 
@@ -149,6 +149,7 @@ public class CuidadoresController : ControllerBase
 
         var paciente = await _pacienteService.GetByIdAsync(request.PacienteId);
         if (paciente == null) return NotFound(new { message = "Paciente no encontrado" });
+        if (paciente.UsuarioWebId != usuarioId) return Forbid();
 
         var dueno = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.Id == paciente.UsuarioWebId);
         if (dueno == null) return NotFound(new { message = "Dueño no encontrado" });

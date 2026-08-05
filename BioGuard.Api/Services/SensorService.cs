@@ -87,7 +87,7 @@ public class SensorService
     public async Task<(LecturaSensor lectura, double probabilidadPico, string? nivelRiesgo)?> InsertarLecturaAsync(
         string pacienteId, string dispositivoMac,
         int pulsoBpm, double temperaturaC, double sudoracionGsr,
-        double? hrv, int? spo2, DateTime? timestamp = null, int diasHistorial = 30, bool bypassRateLimit = false)
+        double? hrv, int? spo2, DateTime? timestamp = null, int diasHistorial = 30, bool bypassRateLimit = false, bool? esSimulado = null)
     {
         if (!ValidarRangosFisiologicos(pulsoBpm, temperaturaC, sudoracionGsr, spo2))
         {
@@ -117,6 +117,7 @@ public class SensorService
             SudoracionGsr = sudoracionGsr,
             Hrv = hrv,
             Spo2 = spo2,
+            EsSimulado = esSimulado,
             ProbabilidadPico = 0,
             ExpireAt = lecturaTimestamp.AddDays(diasHistorial)
         };

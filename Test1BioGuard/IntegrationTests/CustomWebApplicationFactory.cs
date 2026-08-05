@@ -57,7 +57,7 @@ namespace Test1BioGuard.IntegrationTests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             Environment.SetEnvironmentVariable("MONGODB_CONNECTION_STRING", "mongodb://localhost:27017");
-            Environment.SetEnvironmentVariable("JWT_SECRET_KEY", "BioGuard2024SecretKeyForJWTAuthentication!@#$%^&*()");
+            Environment.SetEnvironmentVariable("JWT_SECRET_KEY", "BioGuard-Test-Secret-Key-Only-For-Unit-Tests-0123456789");
             Environment.SetEnvironmentVariable("STRIPE_SECRET_KEY", "sk_test_mock");
             Environment.SetEnvironmentVariable("PAYPAL_CLIENT_ID", "mock_client_id");
             Environment.SetEnvironmentVariable("PAYPAL_CLIENT_SECRET", "mock_client_secret");
@@ -169,7 +169,7 @@ var mockImageStorage = new Mock<IImageStorageService>();
                 .ReturnsAsync(new ImageUploadResult(true, "https://img.test/photo.jpg", null));
             mockImageStorage.Setup(s => s.UploadAsync(
                     It.Is<string>(b => b != "base64fotodata"), It.IsAny<string?>()))
-                .ReturnsAsync(new ImageUploadResult(false, null, "Formato o tamaño inválido"));
+                .ReturnsAsync(new ImageUploadResult(false, null, "Formato o tamaÃ±o invÃ¡lido"));
             services.AddSingleton(mockImageStorage.Object);
 
                 var mockPlanLimite = new Mock<IPlanLimiteService>();

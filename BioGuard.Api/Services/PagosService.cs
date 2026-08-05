@@ -208,10 +208,10 @@ public class PagosService
 
     public async Task<bool> DowngradeToFreeAsync(string usuarioId)
     {
-        var freePlan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Nombre == "BioGuard Free");
+        var freePlan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Nombre == "Gratis");
         if (freePlan == null)
         {
-            _logger.LogError("No se encontró plan Free para downgrade del usuario {UsuarioId}", usuarioId);
+            _logger.LogError("No se encontró plan Gratis para downgrade del usuario {UsuarioId}", usuarioId);
             return false;
         }
 

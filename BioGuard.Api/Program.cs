@@ -92,7 +92,11 @@ builder.Services.AddScoped<IPaymentGateway, PayPalPaymentGateway>();
 builder.Services.AddHostedService<EscalamientoBackgroundService>();
 
 // Controllers + Swagger
-builder.Services.AddControllers();
+// Alineado con producción: JSON camelCase (los clientes móvil/web y el API desplegado usan camelCase)
+builder.Services.AddControllers().AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+});
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
@@ -232,23 +236,22 @@ var seedEndpoint = app.MapPost("/api/Seed/seed-all", async (IMongoDbContext db, 
     {
         var now = DateTime.UtcNow;
 
-        var existingPlanGratis = await db.FindFirstOrDefaultAsync(db.Planes, p => p.Nombre == "BioGuard Free");
+        var existingPlanGratis = await db.FindFirstOrDefaultAsync(db.Planes, p => p.Nombre == "Gratis");
         if (existingPlanGratis == null)
         {
+            // Alineado con producción: planes Gratis/Familiar/Pro (0/10/20 MXN)
             var planes = new List<Plan>
             {
-                new() { Nombre = "BioGuard Free", Precio = 0, PrecioMoneda = "MXN", LimitePacientes = 1, LimiteCuidadores = 1, DiasHistorial = 7, GpsContinuo = false, AiConsole = false, EsSuscripcion = false, Activo = true, Orden = 1, Descripcion = "Semáforo metabólico básico con 7 días de historial. Gancho para conectar tu reloj y probar la plataforma." },
-                new() { Nombre = "BioGuard Plus", Precio = 69, PrecioMoneda = "MXN", LimitePacientes = 1, LimiteCuidadores = 1, DiasHistorial = 90, GpsContinuo = false, AiConsole = false, EsSuscripcion = true, Activo = true, Orden = 2, Descripcion = "Uso personal (Bio-Coach): 90 días de historial, 1 cuidador. Da seguimiento a tu propio estilo de vida." },
-                new() { Nombre = "BioGuard Care", Precio = 129, PrecioMoneda = "MXN", LimitePacientes = 2, LimiteCuidadores = 3, DiasHistorial = 90, GpsContinuo = true, AiConsole = false, EsSuscripcion = true, Activo = true, Orden = 3, Descripcion = "El plan estrella: Guardián Nocturno, alertas críticas y contacto de emergencia. Monitoreo nocturno para familiares con diabetes." },
-                new() { Nombre = "BioGuard Family", Precio = 189, PrecioMoneda = "MXN", LimitePacientes = 4, LimiteCuidadores = 5, DiasHistorial = 180, GpsContinuo = true, AiConsole = true, EsSuscripcion = true, Activo = true, Orden = 4, Descripcion = "Multicuidado: hasta 4 cuidadores, GPS continuo y Consola de IA. Ideal para toda la familia." },
-                new() { Nombre = "Pro Salud", Precio = 399, PrecioMoneda = "MXN", LimitePacientes = 10, LimiteCuidadores = 10, DiasHistorial = 365, GpsContinuo = true, AiConsole = true, EsSuscripcion = true, Activo = true, Orden = 5, Descripcion = "B2B: para clínicas, casas de reposo o profesionales de la salud. Cotización bajo demanda." }
+                new() { Nombre = "Gratis", Precio = 0, PrecioMoneda = "MXN", LimitePacientes = 1, LimiteCuidadores = 0, DiasHistorial = 30, GpsContinuo = false, AiConsole = false, EsSuscripcion = false, Activo = true, Orden = 1, Descripcion = "Plan gratuito actualizado" },
+                new() { Nombre = "Familiar", Precio = 10, PrecioMoneda = "MXN", LimitePacientes = 1, LimiteCuidadores = 3, DiasHistorial = 15, GpsContinuo = false, AiConsole = false, EsSuscripcion = true, Activo = true, Orden = 2, Descripcion = "Plan familiar con GPS y hasta 3 cuidadores" },
+                new() { Nombre = "Pro", Precio = 20, PrecioMoneda = "MXN", LimitePacientes = 1, LimiteCuidadores = 6, DiasHistorial = 30, GpsContinuo = true, AiConsole = true, EsSuscripcion = true, Activo = true, Orden = 3, Descripcion = "Plan profesional con AI Console y funciones avanzadas" }
             };
             await SafeInsertMany(db.Planes, planes, "planes");
         }
         var existingPlan = existingPlanGratis
-            ?? await db.FindFirstOrDefaultAsync(db.Planes, p => p.Nombre == "BioGuard Free");
+            ?? await db.FindFirstOrDefaultAsync(db.Planes, p => p.Nombre == "Gratis");
         if (existingPlan == null)
-            return Results.Problem("No se pudo resolver el plan 'BioGuard Free' para el seed.");
+            return Results.Problem("No se pudo resolver el plan 'Gratis' para el seed.");
 
         var rnd = new Random(Guid.NewGuid().GetHashCode());
         var macAddr = $"AA:BB:CC:{rnd.Next(0x10,0xFF):X2}:{rnd.Next(0x10,0xFF):X2}:{rnd.Next(0x10,0xFF):X2}";

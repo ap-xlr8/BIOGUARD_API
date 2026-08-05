@@ -424,7 +424,7 @@ public class FlujosCompletosTests : IClassFixture<CustomWebApplicationFactory>
             });
 
         _client.DefaultRequestHeaders.Authorization =
-            new("Bearer", TestTokenHelper.GenerateCuidadorToken(cuidadorId, "solo_alertas"));
+            new("Bearer", TestTokenHelper.GenerateCuidadorToken(cuidadorId, "resumen_semanal"));
 
         var lecturasResponse = await _client.GetAsync($"/api/Sensores/lecturas/{pacienteId}");
         lecturasResponse.StatusCode.Should().Be(HttpStatusCode.OK);

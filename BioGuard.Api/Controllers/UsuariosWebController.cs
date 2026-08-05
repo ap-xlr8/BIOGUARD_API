@@ -188,6 +188,7 @@ public class UsuariosWebController : ControllerBase
     /// MÓDULO 2: Buscar usuario por correo (respuesta minimizada)
     /// </summary>
     [HttpGet("by-email/{correo}")]
+    [Authorize(Roles = "dueno")]
     public async Task<IActionResult> GetByEmail(string correo)
     {
         _logger.LogInformation("Looking up user by email: {Correo}", correo);

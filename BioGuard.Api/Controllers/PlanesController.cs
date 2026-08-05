@@ -73,7 +73,7 @@ public class PlanesController : ControllerBase
     // POST /api/Planes [WEB] - Admin
 
     [HttpPost]
-    [Authorize(Roles = "dueno")]
+    [Authorize(Roles = "administrador")]
     public async Task<IActionResult> Crear([FromBody] CrearPlanRequest request)
     {
         _logger.LogInformation("Creating plan {Nombre}", request.Nombre);
@@ -101,7 +101,7 @@ public class PlanesController : ControllerBase
     // PUT /api/Planes/{id} [WEB] - Admin
 
     [HttpPut("{id}")]
-    [Authorize(Roles = "dueno")]
+    [Authorize(Roles = "administrador")]
     public async Task<IActionResult> Editar(string id, [FromBody] CrearPlanRequest request)
     {
         _logger.LogInformation("Updating plan {Id}", id);
@@ -131,7 +131,7 @@ public class PlanesController : ControllerBase
     // DELETE /api/Planes/{id} [WEB] - Admin
 
     [HttpDelete("{id}")]
-    [Authorize(Roles = "dueno")]
+    [Authorize(Roles = "administrador")]
     public async Task<IActionResult> Eliminar(string id)
     {
         _logger.LogInformation("Deactivating plan {Id}", id);
@@ -150,7 +150,7 @@ public class PlanesController : ControllerBase
     // POST /api/Planes/seed [WEB] - Admin
 
     [HttpPost("seed")]
-    [Authorize(Roles = "dueno")]
+    [Authorize(Roles = "administrador")]
     public async Task<IActionResult> Seed()
     {
         var exists = await _db.FindToListAsync(_db.Planes, p => p.Activo == true);
@@ -165,38 +165,24 @@ public class PlanesController : ControllerBase
         {
             new()
             {
-                Nombre = "Free", Precio = 0m, PrecioMoneda = "MXN",
-                LimitePacientes = 1, LimiteCuidadores = 1, DiasHistorial = 7,
+                Nombre = "Gratis", Precio = 0m, PrecioMoneda = "MXN",
+                LimitePacientes = 1, LimiteCuidadores = 0, DiasHistorial = 30,
                 GpsContinuo = false, AiConsole = false, Activo = true, Orden = 1,
-                Descripcion = "Plan básico con funciones limitadas"
+                Descripcion = "Plan gratuito actualizado"
             },
             new()
             {
-                Nombre = "Plus", Precio = 69m, PrecioMoneda = "MXN",
-                LimitePacientes = 1, LimiteCuidadores = 2, DiasHistorial = 30,
+                Nombre = "Familiar", Precio = 10m, PrecioMoneda = "MXN",
+                LimitePacientes = 1, LimiteCuidadores = 3, DiasHistorial = 15,
                 GpsContinuo = false, AiConsole = false, Activo = true, Orden = 2,
-                Descripcion = "Plan intermedio con más almacenamiento"
+                Descripcion = "Plan familiar con GPS y hasta 3 cuidadores"
             },
             new()
             {
-                Nombre = "Care", Precio = 129m, PrecioMoneda = "MXN",
-                LimitePacientes = 1, LimiteCuidadores = 2, DiasHistorial = 180,
-                GpsContinuo = false, AiConsole = false, Activo = true, Orden = 3,
-                Descripcion = "Guardián Nocturno y reportes"
-            },
-            new()
-            {
-                Nombre = "Family", Precio = 299m, PrecioMoneda = "MXN",
-                LimitePacientes = 2, LimiteCuidadores = 4, DiasHistorial = 365,
-                GpsContinuo = true, AiConsole = false, Activo = true, Orden = 4,
-                Descripcion = "Plan familiar con GPS y hasta 4 cuidadores"
-            },
-            new()
-            {
-                Nombre = "Pro Salud", Precio = 599m, PrecioMoneda = "MXN",
-                LimitePacientes = 1, LimiteCuidadores = 10, DiasHistorial = 730,
-                GpsContinuo = true, AiConsole = true, Activo = true, Orden = 5,
-                Descripcion = "Panel institucional"
+                Nombre = "Pro", Precio = 20m, PrecioMoneda = "MXN",
+                LimitePacientes = 1, LimiteCuidadores = 6, DiasHistorial = 30,
+                GpsContinuo = true, AiConsole = true, Activo = true, Orden = 3,
+                Descripcion = "Plan profesional con AI Console y funciones avanzadas"
             }
         };
 
@@ -215,17 +201,15 @@ public class PlanesController : ControllerBase
     // One-time endpoint to update existing plans pricing + limits
 
     [HttpPost("migrate-prices")]
-    [Authorize(Roles = "dueno")]
+    [Authorize(Roles = "administrador")]
     public async Task<IActionResult> MigratePrices()
     {
         _logger.LogInformation("Migrating plan prices to MXN");
         var planUpdates = new Dictionary<string, (decimal Precio, int Cuidadores, string Desc)>
         {
-            ["Free"] = (0m, 1, "Plan básico con funciones limitadas"),
-            ["Plus"] = (69m, 2, "Plan intermedio con más almacenamiento"),
-            ["Care"] = (129m, 2, "Guardián Nocturno y reportes"),
-            ["Family"] = (299m, 4, "Plan familiar con GPS y hasta 4 cuidadores"),
-            ["Pro Salud"] = (599m, 10, "Panel institucional")
+            ["Gratis"] = (0m, 0, "Plan gratuito actualizado"),
+            ["Familiar"] = (10m, 3, "Plan familiar con GPS y hasta 3 cuidadores"),
+            ["Pro"] = (20m, 6, "Plan profesional con AI Console y funciones avanzadas")
         };
 
         var updated = 0;
@@ -256,3 +240,4 @@ public record CrearPlanRequest(
     bool AiConsole = false,
     [Required] string Descripcion = "",
     int Orden = 1);
+

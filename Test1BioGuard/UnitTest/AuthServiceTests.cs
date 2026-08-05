@@ -23,7 +23,7 @@ public class AuthServiceTests
 
     public AuthServiceTests()
     {
-        Environment.SetEnvironmentVariable("JWT_SECRET_KEY", "BioGuard2024SecretKeyForJWTAuthentication!@#$%^&*()");
+        Environment.SetEnvironmentVariable("JWT_SECRET_KEY", "BioGuard-Test-Secret-Key-Only-For-Unit-Tests-0123456789");
 
         _mockDb = new Mock<IMongoDbContext>();
         _mockUsuarios = new Mock<IMongoCollection<UsuarioWeb>>();
@@ -46,7 +46,7 @@ public class AuthServiceTests
 
         var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>
         {
-            ["Jwt:Key"] = "BioGuard2024SecretKeyForJWTAuthentication!@#$%^&*()",
+            ["Jwt:Key"] = "BioGuard-Test-Secret-Key-Only-For-Unit-Tests-0123456789",
             ["Jwt:Issuer"] = "BioGuardApi",
             ["Jwt:Audience"] = "BioGuardApp",
             ["Jwt:ExpirationMinutes"] = "1440"

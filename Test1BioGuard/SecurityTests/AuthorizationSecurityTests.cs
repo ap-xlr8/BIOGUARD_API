@@ -135,7 +135,7 @@ public class AuthorizationSecurityTests : IClassFixture<IntegrationTests.CustomW
     public async Task IDOR_Medicamentos_CuidadorPuedeVerPacienteB_Retorna200()
     {
         SetupFindToListAsyncEmpty(_mockMedicamentos);
-        var cuidadorAsignado = new Cuidador { Id = "c1", UsuarioWebId = CuidadorId, PacienteId = PacienteBId, Nombre = "Cuidador Test" };
+        var cuidadorAsignado = new Cuidador { Id = "c1", UsuarioWebId = CuidadorId, PacienteId = PacienteBId, Nombre = "Cuidador Test", NivelAcceso = "resumen_semanal" };
         SetupFindFirstOrDefaultAsync(_mockCuidadores, cuidadorAsignado);
 
         _client.DefaultRequestHeaders.Authorization =
