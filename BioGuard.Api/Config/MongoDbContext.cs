@@ -16,7 +16,12 @@ public class MongoDbContext : IMongoDbContext
 
     public MongoDbContext(MongoDbConfig config)
     {
-        var client = new MongoClient(config.ConnectionString);
+        var settings = MongoClientSettings.FromConnectionString(config.ConnectionString);
+        settings.SslSettings = new SslSettings
+        {
+            EnabledSslProtocols = System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13
+        };
+        var client = new MongoClient(settings);
         _database = client.GetDatabase(config.DatabaseName);
     }
 
