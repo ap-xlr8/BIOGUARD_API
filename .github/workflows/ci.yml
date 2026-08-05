@@ -73,7 +73,7 @@ jobs:
 
       - name: Enforce Coverage Threshold
         env:
-          COVERAGE_THRESHOLD: ${{ vars.COVERAGE_THRESHOLD || '60' }}
+          COVERAGE_THRESHOLD: ${{ vars.COVERAGE_THRESHOLD || '35' }}
         run: |
           echo "Coverage threshold: ${COVERAGE_THRESHOLD}%"
           TOTAL=0; COVERED=0

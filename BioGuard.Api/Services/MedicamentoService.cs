@@ -27,7 +27,7 @@ public class MedicamentoService
         {
             m.Nombre = _cripto.Decrypt(m.Nombre);
             m.Dosis = _cripto.Decrypt(m.Dosis);
-            m.Notas = _cripto.Decrypt(m.Notas);
+            if (!string.IsNullOrEmpty(m.Notas)) m.Notas = _cripto.Decrypt(m.Notas);
         }
         return list;
     }
@@ -39,7 +39,7 @@ public class MedicamentoService
         {
             m.Nombre = _cripto.Decrypt(m.Nombre);
             m.Dosis = _cripto.Decrypt(m.Dosis);
-            m.Notas = _cripto.Decrypt(m.Notas);
+            if (!string.IsNullOrEmpty(m.Notas)) m.Notas = _cripto.Decrypt(m.Notas);
         }
         return m;
     }
@@ -53,7 +53,7 @@ public class MedicamentoService
             Nombre = _cripto.Encrypt(nombre),
             Dosis = _cripto.Encrypt(dosis),
             Horario = horario,
-            Notas = _cripto.Encrypt(notas),
+            Notas = string.IsNullOrEmpty(notas) ? null : _cripto.Encrypt(notas),
             Activo = true,
             FechaCreacion = DateTime.UtcNow
         };
@@ -74,7 +74,7 @@ public class MedicamentoService
             .Set(m => m.Nombre, _cripto.Encrypt(nombre))
             .Set(m => m.Dosis, _cripto.Encrypt(dosis))
             .Set(m => m.Horario, horario)
-            .Set(m => m.Notas, _cripto.Encrypt(notas));
+            .Set(m => m.Notas, string.IsNullOrEmpty(notas) ? null : _cripto.Encrypt(notas));
 
         var result = await _db.Medicamentos.UpdateOneAsync(m => m.Id == id, update);
         if (result.ModifiedCount == 0)
