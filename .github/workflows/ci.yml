@@ -16,7 +16,7 @@ env:
   DOTNET_VERSION: '10.0.x'
   PROJECT_PATH: 'BioGuard.Api/BioGuard.Api.csproj'
   TEST_PATH: 'Test1BioGuard/Test1BioGuard.csproj'
-  IMAGE_NAME: ghcr.io/${{ vars.IMAGE_NAME || 'lizperz/backend-bioguard' }}
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
 
 jobs:
   build-and-test:
@@ -138,8 +138,13 @@ jobs:
         uses: docker/login-action@abd2ef45e78c5afb21d64d4ca52ee8550d9572c7 # v4.5.1
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Downcase Image Name
+        run: |
+          IMAGE_LOWER=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
+          echo "IMAGE_NAME=ghcr.io/${IMAGE_LOWER}" >> $GITHUB_ENV
 
       - name: Build and push
         id: push
