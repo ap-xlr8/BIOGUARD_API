@@ -84,6 +84,14 @@ public class SensorService
         return true;
     }
 
+    private static bool ValidarTimestamp(DateTime timestamp, DateTime now)
+    {
+        var utc = timestamp.Kind == DateTimeKind.Unspecified
+            ? DateTime.SpecifyKind(timestamp, DateTimeKind.Utc)
+            : timestamp.ToUniversalTime();
+        return utc <= now.AddMinutes(5) && utc >= now.AddDays(-30);
+    }
+
     public async Task<(LecturaSensor lectura, double probabilidadPico, string? nivelRiesgo)?> InsertarLecturaAsync(
         string pacienteId, string dispositivoMac,
         int pulsoBpm, double temperaturaC, double sudoracionGsr,
@@ -104,6 +112,13 @@ public class SensorService
 
         var now = DateTime.UtcNow;
         var lecturaTimestamp = timestamp ?? now;
+        if (!ValidarTimestamp(lecturaTimestamp, now))
+        {
+            _logger.LogWarning("Lectura con timestamp fuera de ventana para paciente {PacienteId}: {Timestamp}",
+                pacienteId, lecturaTimestamp);
+            return null;
+        }
+
         var lectura = new LecturaSensor
         {
             Meta = new MetaData

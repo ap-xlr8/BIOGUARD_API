@@ -74,7 +74,17 @@ public static class ServiceExtensions
             options.MapInboundClaims = false;
         });
 
-        services.AddAuthorization();
+        services.AddAuthorization(options =>
+        {
+            options.AddPolicy("PacienteOnly", policy => policy.RequireRole("paciente"));
+            options.AddPolicy("DuenoOnly", policy => policy.RequireRole("dueno"));
+            options.AddPolicy("CuidadorOnly", policy => policy.RequireRole("cuidador"));
+            options.AddPolicy("AdminOnly", policy => policy.RequireRole("administrador"));
+            options.AddPolicy("CanReadPatientData", policy =>
+                policy.RequireRole("paciente", "cuidador", "dueno", "administrador"));
+            options.AddPolicy("CanWriteSensorData", policy =>
+                policy.RequireRole("paciente"));
+        });
     }
 
     public static void ConfigureRateLimiting(this IServiceCollection services)
@@ -100,7 +110,9 @@ public static class ServiceExtensions
                 new RateLimitRule { Endpoint = "put:/api/Auth/cambiar-password", Period = "1m", Limit = 3 },
                 new RateLimitRule { Endpoint = "post:/api/Sensores/lectura", Period = "1m", Limit = 60 },
                 new RateLimitRule { Endpoint = "post:/api/Sensores/lectura-batch", Period = "1m", Limit = 10 },
-                new RateLimitRule { Endpoint = "post:/api/Sensores/lecturas", Period = "1m", Limit = 10 }
+                new RateLimitRule { Endpoint = "post:/api/Sensores/lecturas", Period = "1m", Limit = 10 },
+                new RateLimitRule { Endpoint = "post:/api/Sensores/tracking", Period = "1m", Limit = 30 },
+                new RateLimitRule { Endpoint = "post:/api/Sensores/tracking-batch", Period = "1m", Limit = 6 }
             };
         });
         services.Configure<ClientRateLimitOptions>(options =>

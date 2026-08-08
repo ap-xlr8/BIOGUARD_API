@@ -2,6 +2,7 @@ using System.Reflection;
 using MongoDB.Driver;
 using Moq;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using BioGuard.Api.Config;
 using BioGuard.Api.Services;
 using BioGuard.Api.Models;
@@ -34,7 +35,9 @@ public class SensorServiceTests
         var mockNotificacionService = new Mock<NotificacionService>(_mockDb.Object, new Mock<ILogger<NotificacionService>>().Object);
         var mockFcmService = new Mock<IFCMService>();
         var mockMlService = new Mock<MLService>(_mockDb.Object, new Mock<ILogger<MLService>>().Object);
-        var mockCripto = new Mock<CriptoService>(new Mock<Microsoft.Extensions.Configuration.IConfiguration>().Object);
+        var mockConfig = new Mock<Microsoft.Extensions.Configuration.IConfiguration>();
+        mockConfig.Setup(c => c["Cripto:Key"]).Returns("0123456789abcdef0123456789abcdef");
+        var mockCripto = new Mock<CriptoService>(mockConfig.Object, NullLogger<CriptoService>.Instance);
         mockCripto.Setup(c => c.Encrypt(It.IsAny<string>())).Returns<string>(s => s);
         mockCripto.Setup(c => c.Decrypt(It.IsAny<string>())).Returns<string>(s => s);
         
@@ -66,6 +69,46 @@ public class SensorServiceTests
         result.SudoracionGsr.Should().Be(2.5);
         result.Meta.PacienteId.Should().Be(pacienteId);
         result.Meta.DispositivoMac.Should().Be("AA:BB:CC:DD:EE:FF");
+    }
+
+    [Fact]
+    public async Task InsertarLecturaAsync_TimestampFuturo_RechazaLectura()
+    {
+        var result = await _service.InsertarLecturaAsync(
+            Guid.NewGuid().ToString(),
+            "AA:BB:CC:DD:EE:FF",
+            72,
+            36.5,
+            2.5,
+            null,
+            null,
+            DateTime.UtcNow.AddMinutes(6));
+
+        result.Should().BeNull();
+        _mockLecturas.Verify(c => c.InsertOneAsync(
+            It.IsAny<LecturaSensor>(),
+            It.IsAny<InsertOneOptions>(),
+            It.IsAny<CancellationToken>()), Times.Never);
+    }
+
+    [Fact]
+    public async Task InsertarLecturaAsync_TimestampDemasiadoAntiguo_RechazaLectura()
+    {
+        var result = await _service.InsertarLecturaAsync(
+            Guid.NewGuid().ToString(),
+            "AA:BB:CC:DD:EE:FF",
+            72,
+            36.5,
+            2.5,
+            null,
+            null,
+            DateTime.UtcNow.AddDays(-31));
+
+        result.Should().BeNull();
+        _mockLecturas.Verify(c => c.InsertOneAsync(
+            It.IsAny<LecturaSensor>(),
+            It.IsAny<InsertOneOptions>(),
+            It.IsAny<CancellationToken>()), Times.Never);
     }
 
     [Fact]

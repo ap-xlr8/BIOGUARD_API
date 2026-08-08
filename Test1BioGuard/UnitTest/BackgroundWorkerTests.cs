@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using MongoDB.Driver;
 using Moq;
 using Xunit;
@@ -34,7 +35,7 @@ public class BackgroundWorkerTests
         var mockNotificacionService = new Mock<NotificacionService>(_mockDb.Object, new Mock<ILogger<NotificacionService>>().Object);
         var mockFcmService = new Mock<IFCMService>();
         var mockMlService = new Mock<MLService>(_mockDb.Object, new Mock<ILogger<MLService>>().Object);
-        var mockCripto = new Mock<CriptoService>(new Mock<Microsoft.Extensions.Configuration.IConfiguration>().Object);
+        var mockCripto = new Mock<CriptoService>(new Mock<Microsoft.Extensions.Configuration.IConfiguration>().Object, NullLogger<CriptoService>.Instance);
         
         _mockSensorService = new Mock<SensorService>(
             _mockDb.Object, 

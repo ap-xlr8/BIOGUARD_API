@@ -50,7 +50,7 @@ public class AuthService
         var exists = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.Correo == request.Correo);
         if (exists != null)
         {
-            _logger.LogWarning("Registration attempt with existing email: {Email}", request.Correo);
+            _logger.LogWarning("Registration attempt with existing email: {Email}", SecurityLog.MaskEmail(request.Correo));
             return null;
         }
 
@@ -77,7 +77,7 @@ public class AuthService
         var (passwordValid, passwordError) = PasswordHasher.ValidateComplexity(request.Password);
         if (!passwordValid)
         {
-            _logger.LogWarning("Registration with weak password for email: {Correo}", request.Correo);
+            _logger.LogWarning("Registration with weak password for email: {Correo}", SecurityLog.MaskEmail(request.Correo));
             return null;
         }
 
@@ -116,7 +116,7 @@ public class AuthService
         var user = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.Correo == request.Correo);
         if (user == null || !user.Activo)
         {
-            _logger.LogWarning("Login attempt for inactive or non-existent user: {Email}", request.Correo);
+            _logger.LogWarning("Login attempt for inactive or non-existent user: {Email}", SecurityLog.MaskEmail(request.Correo));
             return null;
         }
 
@@ -135,7 +135,7 @@ public class AuthService
                 update = Builders<UsuarioWeb>.Update
                     .Set(u => u.FailedLoginAttempts, attempts)
                     .Set(u => u.LockedUntil, DateTime.UtcNow.AddMinutes(15));
-                _logger.LogWarning("Account locked for user {Correo} after {Attempts} failed attempts", request.Correo, attempts);
+                _logger.LogWarning("Account locked for user {Correo} after {Attempts} failed attempts", SecurityLog.MaskEmail(request.Correo), attempts);
             }
             await _db.UsuariosWeb.UpdateOneAsync(u => u.Id == user.Id, update);
             _logger.LogWarning("Invalid password for user: {UserId}", user.Id);
@@ -209,7 +209,7 @@ public class AuthService
 
         if (!user.Activo)
         {
-            _logger.LogWarning("Google login blocked - account inactive: {Email}", email);
+            _logger.LogWarning("Google login blocked - account inactive: {Email}", SecurityLog.MaskEmail(email));
             return null;
         }
 
@@ -397,7 +397,7 @@ public class AuthService
         var user = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.Correo == request.Correo);
         if (user == null)
         {
-            _logger.LogWarning("2FA send attempt for non-existent user: {Email}", request.Correo);
+            _logger.LogWarning("2FA send attempt for non-existent user: {Email}", SecurityLog.MaskEmail(request.Correo));
             return false;
         }
 
@@ -422,7 +422,7 @@ public class AuthService
         var user = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.Correo == request.Correo);
         if (user == null)
         {
-            _logger.LogWarning("2FA verification attempt for non-existent user: {Email}", request.Correo);
+            _logger.LogWarning("2FA verification attempt for non-existent user: {Email}", SecurityLog.MaskEmail(request.Correo));
             return null;
         }
 
@@ -488,7 +488,7 @@ public class AuthService
         var user = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.Correo == request.Correo);
         if (user == null || !user.Activo)
         {
-            _logger.LogWarning("Password reset attempt for inactive or non-existent user: {Email}", request.Correo);
+            _logger.LogWarning("Password reset attempt for inactive or non-existent user: {Email}", SecurityLog.MaskEmail(request.Correo));
             return false;
         }
 
@@ -600,7 +600,7 @@ public class AuthService
             Jti = jti,
             ExpiresAt = expiresAt
         });
-        _logger.LogInformation("Token revoked: {Jti}", jti);
+        _logger.LogInformation("Token revoked: {Jti}", SecurityLog.Fingerprint(jti));
     }
 
     public async Task<bool> IsTokenRevokedAsync(string jti)
@@ -648,7 +648,7 @@ public class AuthService
         var user = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.Correo == email);
         if (user == null)
         {
-            _logger.LogWarning("Forgot password requested for non-existent email: {Email}", email);
+            _logger.LogWarning("Forgot password requested for non-existent email: {Email}", SecurityLog.MaskEmail(email));
             return false;
         }
 
@@ -662,7 +662,7 @@ public class AuthService
         var resetLink = $"{baseUrl.TrimEnd('/')}/reset-password?token={resetToken}";
         await _emailService.SendPasswordResetAsync(user.Correo, $"{user.Nombre} {user.ApellidoPaterno}", resetLink);
 
-        _logger.LogInformation("Password reset token generated and sent for: {Email}", email);
+        _logger.LogInformation("Password reset token generated and sent for: {Email}", SecurityLog.MaskEmail(email));
         return true;
     }
 
@@ -671,7 +671,7 @@ public class AuthService
         var user = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.ResetPasswordToken == token && u.ResetPasswordExpira > DateTime.UtcNow);
         if (user == null)
         {
-            _logger.LogWarning("Reset password failed: invalid or expired token: {Token}", token);
+            _logger.LogWarning("Reset password failed: invalid or expired token: {Token}", SecurityLog.Fingerprint(token));
             return false;
         }
 

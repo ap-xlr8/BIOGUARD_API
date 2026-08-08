@@ -42,16 +42,25 @@ public class SensoresController : ControllerBase
     // luego variable de entorno, y por último un identificador por paciente (no global).
     private string ResolverMac(string? macRequest, string pacienteId)
     {
-        if (!string.IsNullOrWhiteSpace(macRequest)) return macRequest;
+        if (!string.IsNullOrWhiteSpace(macRequest)) return SanitizarDeviceId(macRequest);
         var header = Request.Headers["X-Device-Mac"].FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(header)) return header;
-        return Environment.GetEnvironmentVariable("BIOMETRIC_MAC_ADDRESS")
-            ?? $"dev-{pacienteId[..Math.Min(8, pacienteId.Length)]}";
+        if (!string.IsNullOrWhiteSpace(header)) return SanitizarDeviceId(header);
+        return $"device-{pacienteId[..Math.Min(8, pacienteId.Length)]}";
+    }
+
+    private static string SanitizarDeviceId(string value)
+    {
+        var sanitized = new string(value.Trim().Where(c =>
+            char.IsLetterOrDigit(c) || c is ':' or '-' or '_' or '.').ToArray());
+        return string.IsNullOrWhiteSpace(sanitized)
+            ? "unknown-device"
+            : sanitized[..Math.Min(80, sanitized.Length)];
     }
 
     // ── Lecturas (Envío de datos) ─────────────────────────────
 
     [HttpPost("lectura")]
+    [Authorize(Policy = "CanWriteSensorData")]
     public async Task<IActionResult> RecibirLectura([FromBody] LecturaSensorRequest request)
     {
         var pacienteId = User.FindFirst("paciente_id")?.Value;
@@ -61,7 +70,7 @@ public class SensoresController : ControllerBase
         var macAddress = ResolverMac(request.DispositivoMac, pacienteId);
         var result = await _sensorService.InsertarLecturaAsync(
             pacienteId, macAddress, request.PulsoBpm, request.TemperaturaC,
-            request.SudoracionGsr, request.Hrv, request.Spo2, request.Timestamp, esSimulado: request.EsSimulado);
+            request.SudoracionGsr, request.Hrv, request.Spo2, request.Timestamp, esSimulado: false);
 
         if (result == null)
             return BadRequest(new { message = "Lectura rechazada (rate limit o valores fuera de rango)" });
@@ -83,14 +92,15 @@ public class SensoresController : ControllerBase
 
     [HttpPost("lectura-batch")]
     [HttpPost("lecturas")]
+    [Authorize(Policy = "CanWriteSensorData")]
     [RequestSizeLimit(10485760)]
     public async Task<IActionResult> RecibirLecturaBatch([FromBody] List<LecturaSensorRequest> request)
     {
         var pacienteId = User.FindFirst("paciente_id")?.Value;
         if (string.IsNullOrEmpty(pacienteId)) return Unauthorized();
 
-        if (request.Count > 500)
-            return BadRequest(new { message = "Máximo 500 lecturas por lote" });
+        if (request.Count > 250)
+            return BadRequest(new { message = "Maximo 250 lecturas por lote" });
 
         _logger.LogInformation("Receiving batch of {Count} sensor readings for paciente: {PacienteId}", request.Count, pacienteId);
         var count = 0;
@@ -512,6 +522,7 @@ public class SensoresController : ControllerBase
     // ── Tracking GPS ──────────────────────────────────────────
 
     [HttpPost("tracking")]
+    [Authorize(Policy = "CanWriteSensorData")]
     public async Task<IActionResult> InsertarTracking([FromBody] TrackingGpsRequest request)
     {
         var pacienteId = User.FindFirst("paciente_id")?.Value;
@@ -543,14 +554,15 @@ public class SensoresController : ControllerBase
     }
 
     [HttpPost("tracking-batch")]
+    [Authorize(Policy = "CanWriteSensorData")]
     [RequestSizeLimit(10485760)]
     public async Task<IActionResult> InsertarTrackingBatch([FromBody] List<TrackingGpsRequest> request)
     {
         var pacienteId = User.FindFirst("paciente_id")?.Value;
         if (string.IsNullOrEmpty(pacienteId)) return Unauthorized();
 
-        if (request.Count > 500)
-            return BadRequest(new { message = "Máximo 500 registros GPS por lote" });
+        if (request.Count > 250)
+            return BadRequest(new { message = "Maximo 250 registros GPS por lote" });
 
         var tieneEmergencia = request.Any(r => r.EsEmergencia);
         if (!tieneEmergencia)

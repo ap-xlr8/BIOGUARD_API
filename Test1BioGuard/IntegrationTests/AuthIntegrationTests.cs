@@ -148,7 +148,7 @@ public class AuthIntegrationTests : IClassFixture<CustomWebApplicationFactory>
     }
 
     [Fact]
-    public async Task LoginByCodigo_CodigoInvalido_Retorna404()
+    public async Task LoginByCodigo_CodigoInvalido_Retorna401()
     {
         _mockDb.Setup(db => db.FindFirstOrDefaultAsync(
                 It.IsAny<IMongoCollection<Paciente>>(),
@@ -162,7 +162,7 @@ public class AuthIntegrationTests : IClassFixture<CustomWebApplicationFactory>
         var request = new LoginCodigoRequest("INVALID0");
         var response = await _client.PostAsJsonAsync("/api/Auth/login-codigo", request);
 
-        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+        response.StatusCode.Should().Be(HttpStatusCode.Unauthorized);
     }
 
     [Fact]

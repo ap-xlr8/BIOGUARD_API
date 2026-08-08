@@ -32,14 +32,14 @@ public class AuthController : ControllerBase
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterWebRequest request)
     {
-        _logger.LogInformation("Register attempt for email: {Correo}", request.Correo);
+        _logger.LogInformation("Register attempt for email: {Correo}", SecurityLog.MaskEmail(request.Correo));
         var result = await _authService.RegisterWebAsync(request);
         if (result == null)
         {
-            _logger.LogWarning("Register failed for email: {Correo} - email exists or invalid plan", request.Correo);
+            _logger.LogWarning("Register failed for email: {Correo} - email exists or invalid plan", SecurityLog.MaskEmail(request.Correo));
             return BadRequest(new { message = "El correo ya existe, plan inválido o contraseña débil" });
         }
-        _logger.LogInformation("Register successful for email: {Correo}", request.Correo);
+        _logger.LogInformation("Register successful for email: {Correo}", SecurityLog.MaskEmail(request.Correo));
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
         await _auditoriaService.RegistrarAsync(result.UserId, "registro", "usuarios_web", result.UserId, ip);
         if (result.RequiresVerification)
@@ -55,16 +55,16 @@ public class AuthController : ControllerBase
     [HttpPost("login-web")]
     public async Task<IActionResult> LoginWeb([FromBody] LoginWebRequest request)
     {
-        _logger.LogInformation("Web login attempt for email: {Correo}", request.Correo);
+        _logger.LogInformation("Web login attempt for email: {Correo}", SecurityLog.MaskEmail(request.Correo));
         var result = await _authService.LoginWebAsync(request);
         if (result == null)
         {
-            _logger.LogWarning("Web login failed for email: {Correo} - invalid credentials", request.Correo);
+            _logger.LogWarning("Web login failed for email: {Correo} - invalid credentials", SecurityLog.MaskEmail(request.Correo));
             var failIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
             await _auditoriaService.RegistrarAsync("unknown", "login_fallido", "usuarios_web", request.Correo, failIp);
             return Unauthorized(new { message = "Credenciales inválidas" });
         }
-        _logger.LogInformation("Web login successful for email: {Correo}", request.Correo);
+        _logger.LogInformation("Web login successful for email: {Correo}", SecurityLog.MaskEmail(request.Correo));
         var loginIp = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
         await _auditoriaService.RegistrarAsync(result.UserId, "login", "usuarios_web", result.UserId, loginIp);
         if (result.Requires2FA)
@@ -95,12 +95,12 @@ public class AuthController : ControllerBase
     [HttpPost("login-codigo")]
     public async Task<IActionResult> LoginByCodigo([FromBody] LoginCodigoRequest request)
     {
-        _logger.LogInformation("Login by codigo attempt for code: {CodigoAcceso}", request.CodigoAcceso);
+        _logger.LogInformation("Login by codigo attempt: {CodigoAcceso}", SecurityLog.Fingerprint(request.CodigoAcceso));
         var result = await _authService.LoginByCodigoAsync(request);
         if (result == null)
         {
-            _logger.LogWarning("Login by codigo failed - code not found: {CodigoAcceso}", request.CodigoAcceso);
-            return NotFound(new { message = "Código no encontrado" });
+            _logger.LogWarning("Login by codigo failed: {CodigoAcceso}", SecurityLog.Fingerprint(request.CodigoAcceso));
+            return Unauthorized(new { message = "Codigo invalido o expirado" });
         }
         _logger.LogInformation("Login by codigo successful");
         return Ok(result);
@@ -113,13 +113,13 @@ public class AuthController : ControllerBase
     [HttpPost("enviar-2fa")]
     public async Task<IActionResult> Enviar2FA([FromBody] Enviar2FARequest request)
     {
-        _logger.LogInformation("2FA send attempt for email: {Email}", request.Correo);
+        _logger.LogInformation("2FA send attempt for email: {Email}", SecurityLog.MaskEmail(request.Correo));
         var result = await _authService.Enviar2FAAsync(request);
         if (!result)
         {
-            _logger.LogWarning("2FA send failed for email: {Email} - email not found or inactive", request.Correo);
+            _logger.LogWarning("2FA send failed for email: {Email} - email not found or inactive", SecurityLog.MaskEmail(request.Correo));
         }
-        _logger.LogInformation("2FA code request processed for email: {Email}", request.Correo);
+        _logger.LogInformation("2FA code request processed for email: {Email}", SecurityLog.MaskEmail(request.Correo));
         return Ok(new { message = "Si el correo está registrado, recibirás un código" });
     }
 
@@ -164,7 +164,7 @@ public class AuthController : ControllerBase
     [HttpPost("forgot-password")]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
     {
-        _logger.LogInformation("Forgot password attempt for email: {Correo}", request.Correo);
+        _logger.LogInformation("Forgot password attempt for email: {Correo}", SecurityLog.MaskEmail(request.Correo));
         await _authService.ForgotPasswordAsync(request);
         return Ok(new { message = "Si el correo está registrado, recibirás un link de recuperación" });
     }
@@ -228,7 +228,7 @@ public class AuthController : ControllerBase
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId != null)
             await _authService.RevokeRefreshTokenChainAsync(userId);
-        _logger.LogInformation("User logged out, token revoked: {Jti}", jti);
+        _logger.LogInformation("User logged out, token revoked: {Jti}", SecurityLog.Fingerprint(jti));
         userId ??= "unknown";
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
         await _auditoriaService.RegistrarAsync(userId, "logout", "usuarios_web", userId, ip);

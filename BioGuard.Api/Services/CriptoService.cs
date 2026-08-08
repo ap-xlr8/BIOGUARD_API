@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 
 namespace BioGuard.Api.Services;
 
@@ -8,10 +9,11 @@ public class CriptoService
 {
     private readonly byte[] _key;
 
-    public CriptoService(IConfiguration config)
+    public CriptoService(IConfiguration config, ILogger<CriptoService>? logger = null)
     {
-        var configuredKey = config["Cripto:Key"]
-            ?? Environment.GetEnvironmentVariable("CRIPTO_KEY");
+        // La clave de cifrado queda aislada bajo Cripto:Key (Program.cs centraliza el
+        // mapeo de CRIPTO_KEY); aquí solo se lee desde la configuración.
+        var configuredKey = config["Cripto:Key"];
         if (!string.IsNullOrEmpty(configuredKey))
         {
             _key = SHA256.HashData(Encoding.UTF8.GetBytes(configuredKey));
@@ -30,6 +32,10 @@ public class CriptoService
                     "CriptoService: no hay clave de cifrado configurada. Define Cripto:Key, " +
                     "CRIPTO_KEY o JWT_SECRET_KEY antes de arrancar.");
             }
+            logger?.LogWarning(
+                "CriptoService: no se definió CRIPTO_KEY/Cripto:Key; derivando la clave de " +
+                "cifrado desde JWT_SECRET_KEY. Configura CRIPTO_KEY para aislar la clave de " +
+                "cifrado de la clave de firma JWT.");
             _key = SHA256.HashData(Encoding.UTF8.GetBytes("bioguard-cripto-v1:" + jwtKey));
         }
     }

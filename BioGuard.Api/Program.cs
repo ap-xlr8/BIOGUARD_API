@@ -27,6 +27,16 @@ var jwtKey = FallbackIfEmpty(builder.Configuration["Jwt:Key"],
         Environment.GetEnvironmentVariable("JWT_SECRET_KEY"))
     ?? throw new InvalidOperationException("JWT secret key not configured.");
 
+// Aislar la clave de cifrado: centralizar aquí el mapeo de CRIPTO_KEY bajo Cripto:Key
+// para que CriptoService dependa solo de la configuración y no lea variables de entorno
+// directamente (la clave de cifrado queda separada de la firma JWT).
+var criptoKey = FallbackIfEmpty(builder.Configuration["Cripto:Key"],
+    Environment.GetEnvironmentVariable("CRIPTO_KEY"));
+if (!string.IsNullOrWhiteSpace(criptoKey))
+{
+    builder.Configuration["Cripto:Key"] = criptoKey;
+}
+
 var mongoConfig = new MongoDbConfig
 {
     ConnectionString = mongoConnectionString,
@@ -169,17 +179,17 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseHsts();
-app.UseHttpsRedirection();
-app.UseCors("BioGuardPolicy");
-
-// Respetar X-Forwarded-For/Proto detrás de proxy para IP real (rate limiting, auditoría)
 app.UseForwardedHeaders(new ForwardedHeadersOptions
 {
     ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
         | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
 });
 
+app.UseHsts();
+app.UseHttpsRedirection();
+app.UseCors("BioGuardPolicy");
+
+// Respetar X-Forwarded-For/Proto detrás de proxy para IP real (rate limiting, auditoría)
 // Rate limiting middleware
 app.UseIpRateLimiting();
 
@@ -196,22 +206,28 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<BioGuardHub>("/hubs/bioguard");
 
-app.MapGet("/health", async (IMongoDbContext db) =>
+app.MapGet("/health", async (IMongoDbContext db, IWebHostEnvironment env) =>
 {
     try
     {
         await db.FindFirstOrDefaultAsync(db.Pacientes, Builders<Paciente>.Filter.Empty, null);
-        return Results.Ok(new { status = "healthy", database = "connected", timestamp = DateTime.UtcNow });
+        if (env.IsDevelopment())
+            return Results.Ok(new { status = "healthy", database = "connected", timestamp = DateTime.UtcNow });
+        return Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow });
     }
     catch (Exception ex)
     {
-        return Results.Json(new { status = "unhealthy", database = "disconnected", error = ex.Message, timestamp = DateTime.UtcNow }, statusCode: 503);
+        if (env.IsDevelopment())
+            return Results.Json(new { status = "unhealthy", database = "disconnected", error = ex.Message, timestamp = DateTime.UtcNow }, statusCode: 503);
+        return Results.Json(new { status = "unhealthy", timestamp = DateTime.UtcNow }, statusCode: 503);
     }
 });
 
 // =============================================
-// SEED ENDPOINT (Conditional Auth)
+// SEED ENDPOINT (Development only, explicitly enabled)
 // =============================================
+if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("Seed:Enabled"))
+{
 var seedEndpoint = app.MapPost("/api/Seed/seed-all", async (IMongoDbContext db, ILogger<Program> logger, HttpContext httpContext, CriptoService cripto) =>
 {
     if (!app.Environment.IsDevelopment())
@@ -395,13 +411,7 @@ var seedEndpoint = app.MapPost("/api/Seed/seed-all", async (IMongoDbContext db, 
     }
 });
 
-if (app.Environment.IsDevelopment())
-{
-    seedEndpoint.AllowAnonymous();
-}
-else
-{
-    seedEndpoint.RequireAuthorization(new Microsoft.AspNetCore.Authorization.AuthorizeAttribute { Roles = "dueno" });
+seedEndpoint.AllowAnonymous();
 }
 
 app.Run();

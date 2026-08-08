@@ -1,6 +1,7 @@
 using MongoDB.Driver;
 using Moq;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Abstractions;
 using BioGuard.Api.Config;
 using BioGuard.Api.Services;
 using BioGuard.Api.Models;
@@ -20,7 +21,7 @@ public class MedicamentoServiceTests
         _mockCollection = new Mock<IMongoCollection<Medicamento>>();
         _mockDb.Setup(db => db.Medicamentos).Returns(_mockCollection.Object);
         var mockLogger = new Mock<ILogger<MedicamentoService>>();
-        var mockCripto = new Mock<CriptoService>(new Mock<Microsoft.Extensions.Configuration.IConfiguration>().Object);
+        var mockCripto = new Mock<CriptoService>(new Mock<Microsoft.Extensions.Configuration.IConfiguration>().Object, NullLogger<CriptoService>.Instance);
         mockCripto.Setup(c => c.Encrypt(It.IsAny<string>())).Returns<string>(s => s);
         mockCripto.Setup(c => c.Decrypt(It.IsAny<string>())).Returns<string>(s => s);
         _service = new MedicamentoService(_mockDb.Object, mockCripto.Object, mockLogger.Object);
