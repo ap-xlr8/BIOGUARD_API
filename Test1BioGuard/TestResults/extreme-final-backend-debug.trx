@@ -1,0 +1,50 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TestRun id="786ba598-3f2e-412d-b430-6111ac00b155" name="alexi@CAISSA 2026-08-07 09:17:11" runUser="CAISSA\alexi" xmlns="http://microsoft.com/schemas/VisualStudio/TeamTest/2010">
+  <Times creation="2026-08-07T09:17:11.0996570-06:00" queuing="2026-08-07T09:17:11.0996577-06:00" start="2026-08-07T09:15:54.7323463-06:00" finish="2026-08-07T09:17:11.1010641-06:00" />
+  <TestSettings name="default" id="2ecda441-3fba-4c23-8f94-4fb1e1a87e75">
+    <Deployment runDeploymentRoot="alexi_CAISSA_2026-08-07_09_17_11" />
+  </TestSettings>
+  <TestLists>
+    <TestList name="Resultados sin formato de lista" id="8c84fa94-04c1-424b-9868-57a2d4851a1d" />
+    <TestList name="Todos los resultados cargados" id="19431567-8539-422a-85d7-44ee4e166bda" />
+  </TestLists>
+  <ResultSummary outcome="Failed">
+    <Counters total="0" executed="0" passed="0" failed="0" error="0" timeout="0" aborted="0" inconclusive="0" passedButRunAborted="0" notRunnable="0" notExecuted="0" disconnected="0" warning="0" completed="0" inProgress="0" pending="0" />
+    <Output>
+      <StdOut>[xUnit.net 00:00:00.01] xUnit.net VSTest Adapter v3.1.5+1b188a7b0a (64-bit .NET 10.0.10)&#xD;
+</StdOut>
+    </Output>
+    <RunInfos>
+      <RunInfo computerName="CAISSA" outcome="Error" timestamp="2026-08-07T09:16:43.7445914-06:00">
+        <Text>[xUnit.net 00:00:41.39] Test1BioGuard: Catastrophic failure: System.IO.FileLoadException: Could not load file or assembly 'C:\Users\alexi\OneDrive\Pictures\POKEMON\EDEL2.0\Backend-BioGuard-master\Test1BioGuard\bin\Debug\net10.0\BioGuard.Api.dll'. Una directiva de Control de aplicaciones bloqueó este archivo. (0x800711C7)&#xD;
+File name: 'C:\Users\alexi\OneDrive\Pictures\POKEMON\EDEL2.0\Backend-BioGuard-master\Test1BioGuard\bin\Debug\net10.0\BioGuard.Api.dll'&#xD;
+   at System.Reflection.RuntimeAssembly.GetExportedTypes()&#xD;
+   at Xunit.Sdk.ReflectionAssemblyInfo.GetTypes(Boolean includePrivateTypes) in /_/src/xunit.execution/Sdk/Reflection/ReflectionAssemblyInfo.cs:line 80&#xD;
+   at Xunit.Sdk.TestCollectionFactoryHelper.GetTestCollectionDefinitions(IAssemblyInfo assemblyInfo, IMessageSink diagnosticMessageSink) in /_/src/xunit.execution/Sdk/Frameworks/TestCollectionFactoryHelper.cs:line 22&#xD;
+   at Xunit.Sdk.CollectionPerClassTestCollectionFactory..ctor(ITestAssembly testAssembly, IMessageSink diagnosticMessageSink) in /_/src/xunit.execution/Sdk/Frameworks/CollectionPerClassTestCollectionFactory.cs:line 27&#xD;
+   at Xunit.Sdk.ExtensibilityPointFactory.GetXunitTestCollectionFactory(IMessageSink diagnosticMessageSink, IAttributeInfo collectionBehaviorAttribute, ITestAssembly testAssembly) in /_/src/xunit.execution/Sdk/ExtensibilityPointFactory.cs:line 245&#xD;
+   at Xunit.Sdk.XunitTestFrameworkDiscoverer..ctor(IAssemblyInfo assemblyInfo, ISourceInformationProvider sourceProvider, IMessageSink diagnosticMessageSink, IXunitTestCollectionFactory collectionFactory) in /_/src/xunit.execution/Sdk/Frameworks/XunitTestFrameworkDiscoverer.cs:line 45&#xD;
+   at Xunit.Sdk.XunitTestFramework.CreateDiscoverer(IAssemblyInfo assemblyInfo) in /_/src/xunit.execution/Sdk/Frameworks/XunitTestFramework.cs:line 21&#xD;
+   at Xunit.Sdk.TestFramework.GetDiscoverer(IAssemblyInfo assemblyInfo) in /_/src/xunit.execution/Sdk/Frameworks/TestFramework.cs:line 71&#xD;
+   at Xunit.Sdk.TestFrameworkProxy.GetDiscoverer(IAssemblyInfo assembly) in /_/src/xunit.execution/Sdk/Frameworks/TestFrameworkProxy.cs:line 68&#xD;
+   at Xunit.Runner.v2.Xunit2..ctor(IMessageSink diagnosticMessageSink, AppDomainSupport appDomainSupport, ISourceInformationProvider sourceInformationProvider, IAssemblyInfo assemblyInfo, String assemblyFileName, String xunitExecutionAssemblyPath, String configFileName, Boolean shadowCopy, String shadowCopyFolder, Boolean verifyAssembliesOnDisk)&#xD;
+   at Xunit.Runner.v2.Xunit2.ForDiscoveryAndExecution(XunitProjectAssembly projectAssembly, ISourceInformationProvider sourceInformationProvider, IMessageSink diagnosticMessageSink, Boolean verifyAssembliesOnDisk)&#xD;
+   at Xunit.XunitFrontController.Create(XunitProjectAssembly projectAssembly, ISourceInformationProvider sourceInformationProvider, IMessageSink diagnosticMessageSink, ITestProcessLauncher testProcessLauncher)&#xD;
+   at Xunit.Runner.VisualStudio.VsTestRunner.RunTestsInAssembly(IRunContext runContext, IFrameworkHandle frameworkHandle, LoggerHelper logger, TestPlatformContext testPlatformContext, RunSettings runSettings, IMessageSink reporterMessageHandler, AssemblyRunInfo runInfo)&#xD;
+   at Xunit.Runner.VisualStudio.VsTestRunner.RunTestsInAssembly(IRunContext runContext, IFrameworkHandle frameworkHandle, LoggerHelper logger, TestPlatformContext testPlatformContext, RunSettings runSettings, IMessageSink reporterMessageHandler, AssemblyRunInfo runInfo)</Text>
+      </RunInfo>
+      <RunInfo computerName="CAISSA" outcome="Warning" timestamp="2026-08-07T09:16:43.8099320-06:00">
+        <Text>No hay ninguna prueba disponible en C:\Users\alexi\OneDrive\Pictures\POKEMON\EDEL2.0\Backend-BioGuard-master\Test1BioGuard\bin\Debug\net10.0\Test1BioGuard.dll. Asegúrese de que los detectores y ejecutores de pruebas están registrados y de que la configuración de versión de la plataforma y de Framework es correcta y vuelva a intentarlo.</Text>
+      </RunInfo>
+    </RunInfos>
+    <CollectorDataEntries>
+      <Collector agentName="CAISSA" uri="datacollector://microsoft/CoverletCodeCoverage/1.0" collectorDisplayName="XPlat code coverage">
+        <UriAttachments>
+          <UriAttachment>
+            <A href="CAISSA\coverage.cobertura.xml"></A>
+          </UriAttachment>
+        </UriAttachments>
+      </Collector>
+    </CollectorDataEntries>
+  </ResultSummary>
+</TestRun>
