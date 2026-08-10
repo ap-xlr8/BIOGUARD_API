@@ -15,6 +15,10 @@ public class TrackingGps
     [BsonElement("timestamp")]
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 
+    [BsonElement("source_message_id")]
+    [BsonIgnoreIfNull]
+    public string? SourceMessageId { get; set; }
+
     [BsonElement("ubicacion")]
     public UbicacionGps Ubicacion { get; set; } = new();
 

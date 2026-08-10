@@ -24,6 +24,32 @@ var mongoConnectionString = FallbackIfEmpty(builder.Configuration["ConnectionStr
         Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING"))
     ?? throw new InvalidOperationException("MongoDB connection string not configured.");
 var jwtKey = FallbackIfEmpty(builder.Configuration["Jwt:Key"],
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.OpenApi.Models;
+using MongoDB.Driver;
+using MongoDB.Bson;
+using AspNetCoreRateLimit;
+using BioGuard.Api.Config;
+using BioGuard.Api.Models;
+using BioGuard.Api.Services;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.AddServerHeader = false;
+});
+
+// =============================================
+// CONFIGURATION AND DATABASE (MongoDB)
+// =============================================
+static string? FallbackIfEmpty(string? value, string? fallback)
+    => string.IsNullOrWhiteSpace(value) ? fallback : value;
+
+var mongoConnectionString = FallbackIfEmpty(builder.Configuration["ConnectionStrings:MongoDB"],
+        Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING"))
+    ?? throw new InvalidOperationException("MongoDB connection string not configured.");
+var jwtKey = FallbackIfEmpty(builder.Configuration["Jwt:Key"],
         Environment.GetEnvironmentVariable("JWT_SECRET_KEY"))
     ?? throw new InvalidOperationException("JWT secret key not configured.");
 
@@ -35,6 +61,15 @@ var criptoKey = FallbackIfEmpty(builder.Configuration["Cripto:Key"],
 if (!string.IsNullOrWhiteSpace(criptoKey))
 {
     builder.Configuration["Cripto:Key"] = criptoKey;
+}
+else if (builder.Environment.IsProduction())
+{
+    // En producción, CRIPTO_KEY es obligatorio para garantizar cifrado
+    // independiente de la clave JWT. Sin esta clave, los datos GPS
+    // y datos sensibles no tendrán cifrado dedicado.
+    throw new InvalidOperationException(
+        "CRIPTO_KEY es obligatorio en producción. " +
+        "Configura esta variable de entorno en DigitalOcean App Platform / GitHub Secrets.");
 }
 
 var mongoConfig = new MongoDbConfig
@@ -58,7 +93,7 @@ QuestPDF.Settings.License = QuestPDF.Infrastructure.LicenseType.Community;
 // SERVICE CONFIGURATIONS (via Extension Methods)
 // =============================================
 builder.Services.ConfigureJwtAuthentication(builder.Configuration, jwtKey);
-builder.Services.ConfigureRateLimiting();
+builder.Services.ConfigureRateLimiting(builder.Configuration, builder.Environment.IsProduction());
 builder.Services.ConfigureCors(builder.Configuration, builder.Environment.IsDevelopment());
 
 builder.Services.AddSignalR();
@@ -77,6 +112,7 @@ builder.Services.AddSingleton<CriptoService>();
 builder.Services.AddHttpClient<AuthService>();
 builder.Services.AddScoped<PacienteService>();
 builder.Services.AddScoped<SensorService>();
+builder.Services.AddScoped<IdempotencyService>();
 builder.Services.AddScoped<UsuariosWebService>();
 builder.Services.AddScoped<PagosService>();
 builder.Services.AddScoped<CuidadorService>();
@@ -88,6 +124,7 @@ builder.Services.AddScoped<MedicamentoService>();
 builder.Services.AddScoped<AlertaService>();
 builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<OwnershipHelper>();
+builder.Services.AddScoped<AccessControlService>();
 builder.Services.AddScoped<IRiesgoMetabolicoService, RiesgoMetabolicoService>();
 builder.Services.AddScoped<IRiesgoService, RiesgoService>();
 builder.Services.AddScoped<IPacienteAccessService, PacienteAccessService>();
@@ -100,6 +137,24 @@ builder.Services.AddScoped<IPaymentGateway, PayPalPaymentGateway>();
 
 // Durable Background Task Runner for critical alarms
 builder.Services.AddHostedService<EscalamientoBackgroundService>();
+
+// =============================================
+// API VERSIONING
+// =============================================
+builder.Services.AddApiVersioning(options =>
+{
+    options.DefaultApiVersion = new Asp.Versioning.ApiVersion(1, 0);
+    options.AssumeDefaultVersionWhenUnspecified = true;
+    options.ReportApiVersions = true;
+    options.ApiVersionReader = Asp.Versioning.ApiVersionReader.Combine(
+        new Asp.Versioning.UrlSegmentApiVersionReader(),
+        new Asp.Versioning.HeaderApiVersionReader("X-Api-Version")
+    );
+}).AddApiExplorer(options =>
+{
+    options.GroupNameFormat = "'v'VVV";
+    options.SubstituteApiVersionInUrl = true;
+});
 
 // Controllers + Swagger
 // Alineado con producción: JSON camelCase (los clientes móvil/web y el API desplegado usan camelCase)
@@ -179,11 +234,27 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseForwardedHeaders(new ForwardedHeadersOptions
+var forwardedHeadersOptions = new ForwardedHeadersOptions
 {
     ForwardedHeaders = Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedFor
-        | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto
-});
+        | Microsoft.AspNetCore.HttpOverrides.ForwardedHeaders.XForwardedProto,
+    ForwardLimit = 1,
+    RequireHeaderSymmetry = true
+};
+var trustedProxyValues = (builder.Configuration["TRUSTED_PROXY_IPS"] ?? string.Empty)
+    .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+foreach (var value in trustedProxyValues)
+{
+    if (!System.Net.IPAddress.TryParse(value, out var address))
+        throw new InvalidOperationException($"TRUSTED_PROXY_IPS contains an invalid address: {value}");
+    forwardedHeadersOptions.KnownProxies.Add(address);
+}
+if (app.Environment.IsProduction() && trustedProxyValues.Length == 0)
+{
+    throw new InvalidOperationException(
+        "TRUSTED_PROXY_IPS is required in production so forwarded headers cannot be spoofed");
+}
+app.UseForwardedHeaders(forwardedHeadersOptions);
 
 app.UseHsts();
 app.UseHttpsRedirection();
@@ -252,20 +323,16 @@ var seedEndpoint = app.MapPost("/api/Seed/seed-all", async (IMongoDbContext db, 
     {
         var now = DateTime.UtcNow;
 
-        var existingPlanGratis = await db.FindFirstOrDefaultAsync(db.Planes, p => p.Nombre == "Gratis");
+        var freeAliases = PlanCatalog.Aliases(PlanCatalog.Free);
+        var existingPlanGratis = await db.FindFirstOrDefaultAsync(db.Planes, p => freeAliases.Contains(p.Nombre));
         if (existingPlanGratis == null)
         {
             // Alineado con producción: planes Gratis/Familiar/Pro (0/10/20 MXN)
-            var planes = new List<Plan>
-            {
-                new() { Nombre = "Gratis", Precio = 0, PrecioMoneda = "MXN", LimitePacientes = 1, LimiteCuidadores = 0, DiasHistorial = 30, GpsContinuo = false, AiConsole = false, EsSuscripcion = false, Activo = true, Orden = 1, Descripcion = "Plan gratuito actualizado" },
-                new() { Nombre = "Familiar", Precio = 10, PrecioMoneda = "MXN", LimitePacientes = 1, LimiteCuidadores = 3, DiasHistorial = 15, GpsContinuo = false, AiConsole = false, EsSuscripcion = true, Activo = true, Orden = 2, Descripcion = "Plan familiar con GPS y hasta 3 cuidadores" },
-                new() { Nombre = "Pro", Precio = 20, PrecioMoneda = "MXN", LimitePacientes = 1, LimiteCuidadores = 6, DiasHistorial = 30, GpsContinuo = true, AiConsole = true, EsSuscripcion = true, Activo = true, Orden = 3, Descripcion = "Plan profesional con AI Console y funciones avanzadas" }
-            };
+            var planes = PlanCatalog.CreateDefaultPlans();
             await SafeInsertMany(db.Planes, planes, "planes");
         }
         var existingPlan = existingPlanGratis
-            ?? await db.FindFirstOrDefaultAsync(db.Planes, p => p.Nombre == "Gratis");
+            ?? await db.FindFirstOrDefaultAsync(db.Planes, p => freeAliases.Contains(p.Nombre));
         if (existingPlan == null)
             return Results.Problem("No se pudo resolver el plan 'Gratis' para el seed.");
 
@@ -411,7 +478,14 @@ var seedEndpoint = app.MapPost("/api/Seed/seed-all", async (IMongoDbContext db, 
     }
 });
 
-seedEndpoint.AllowAnonymous();
+// Seed solo accesible con header de secreto en Development
+seedEndpoint.AllowAnonymous().AddEndpointFilter(async (ctx, next) =>
+{
+    var secret = app.Configuration["Seed:Secret"] ?? "dev-seed-secret";
+    if (!ctx.HttpContext.Request.Headers.TryGetValue("X-Seed-Secret", out var val) || val != secret)
+        return Results.Problem("Unauthorized", statusCode: 401);
+    return await next(ctx);
+});
 }
 
 app.Run();

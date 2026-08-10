@@ -25,9 +25,11 @@ public class CuidadoresController : ControllerBase
     private readonly AuditoriaService _auditoriaService;
     private readonly ILogger<CuidadoresController> _logger;
     private readonly OwnershipHelper _ownershipHelper;
+    private readonly IPlanLimiteService _planLimiteService;
 
     public CuidadoresController(CuidadorService cuidadorService, PacienteService pacienteService,
-        IMongoDbContext db, AuditoriaService auditoriaService, ILogger<CuidadoresController> logger, OwnershipHelper ownershipHelper)
+        IMongoDbContext db, AuditoriaService auditoriaService, ILogger<CuidadoresController> logger,
+        OwnershipHelper ownershipHelper, IPlanLimiteService planLimiteService)
     {
         _cuidadorService = cuidadorService;
         _pacienteService = pacienteService;
@@ -35,6 +37,7 @@ public class CuidadoresController : ControllerBase
         _auditoriaService = auditoriaService;
         _logger = logger;
         _ownershipHelper = ownershipHelper;
+        _planLimiteService = planLimiteService;
     }
 
     // ── Consulta ──────────────────────────────────────────────
@@ -44,6 +47,7 @@ public class CuidadoresController : ControllerBase
     /// MÓDULO 4: Listar todos los cuidadores del usuario
     /// </summary>
     [HttpGet]
+    [Authorize(Roles = SystemRoles.Dueno)]
     public async Task<IActionResult> Listar()
     {
         var usuarioId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -61,6 +65,7 @@ public class CuidadoresController : ControllerBase
     /// MÓDULO 4: Cuántos puede agregar según plan (ej: "2/3")
     /// </summary>
     [HttpGet("disponibles")]
+    [Authorize(Roles = SystemRoles.Dueno)]
     public async Task<IActionResult> Disponibles()
     {
         var usuarioId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -76,8 +81,9 @@ public class CuidadoresController : ControllerBase
         }
 
         var dueno = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.Id == usuarioId);
-        var plan = dueno != null ? await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Id == dueno.PlanId) : null;
-        var limite = plan?.LimiteCuidadores ?? 3;
+        var plan = dueno != null ? await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Id == dueno.PlanId && p.Activo) : null;
+        if (plan == null) return Forbid();
+        var limite = plan.LimiteCuidadores;
         var count = await _cuidadorService.ContarPorPacienteAsync(paciente.Id);
         return Ok(new { Usados = count, Total = limite, Disponibles = limite - count });
     }
@@ -106,9 +112,11 @@ public class CuidadoresController : ControllerBase
             return Forbid();
         }
 
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
         return Ok(new CuidadorResponse(
             cuidador.Id, cuidador.Nombre, cuidador.Parentesco,
-            cuidador.PacienteId, cuidador.NivelAcceso, cuidador.CodigoAccesoQr));
+            cuidador.PacienteId, cuidador.NivelAcceso,
+            role == SystemRoles.Dueno ? cuidador.CodigoAccesoQr : string.Empty));
     }
 
     /// <summary>
@@ -130,8 +138,10 @@ public class CuidadoresController : ControllerBase
 
         _logger.LogInformation("Fetching cuidadores for paciente: {PacienteId}", pacienteId);
         var cuidadores = await _cuidadorService.ObtenerPorPacienteAsync(pacienteId);
+        var includeCredentials = role == SystemRoles.Dueno;
         var response = cuidadores.Select(c => new CuidadorResponse(
-            c.Id, c.Nombre, c.Parentesco, c.PacienteId, c.NivelAcceso, c.CodigoAccesoQr)).ToList();
+            c.Id, c.Nombre, c.Parentesco, c.PacienteId, c.NivelAcceso,
+            includeCredentials ? c.CodigoAccesoQr : string.Empty)).ToList();
         return Ok(response);
     }
 
@@ -142,6 +152,7 @@ public class CuidadoresController : ControllerBase
     /// MÓDULO 4: Crear cuidador + generar QR
     /// </summary>
     [HttpPost]
+    [Authorize(Roles = SystemRoles.Dueno)]
     public async Task<IActionResult> Crear([FromBody] CrearCuidadorRequest request)
     {
         var usuarioId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -151,11 +162,16 @@ public class CuidadoresController : ControllerBase
         if (paciente == null) return NotFound(new { message = "Paciente no encontrado" });
         if (paciente.UsuarioWebId != usuarioId) return Forbid();
 
+        var planCheck = await _planLimiteService.VerificarLimiteCuidadoresAsync(usuarioId, request.PacienteId);
+        if (!planCheck.Permitido)
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = planCheck.Motivo });
+
         var dueno = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.Id == paciente.UsuarioWebId);
         if (dueno == null) return NotFound(new { message = "Dueño no encontrado" });
 
-        var plan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Id == dueno.PlanId);
-        var limiteCuidadores = plan?.LimiteCuidadores ?? 3;
+        var plan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Id == dueno.PlanId && p.Activo);
+        if (plan == null) return Forbid();
+        var limiteCuidadores = plan.LimiteCuidadores;
 
         var count = await _cuidadorService.ContarPorPacienteAsync(request.PacienteId);
         if (count >= limiteCuidadores)
@@ -295,6 +311,7 @@ public class CuidadoresController : ControllerBase
     /// MÓDULO 4: Retornar QR y código para vinculación
     /// </summary>
     [HttpGet("{id}/qr")]
+    [Authorize(Roles = SystemRoles.Dueno)]
     public async Task<IActionResult> ObtenerQR(string id)
     {
         var usuarioId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
@@ -312,6 +329,7 @@ public class CuidadoresController : ControllerBase
     /// MÓDULO 4: Nuevo código (revoca el anterior)
     /// </summary>
     [HttpPost("{id}/regenerar-qr")]
+    [Authorize(Roles = SystemRoles.Dueno)]
     public async Task<IActionResult> RegenerarQR(string id)
     {
         var usuarioId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

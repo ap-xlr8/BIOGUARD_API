@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using BioGuard.Api.Services;
 using BioGuard.Api.DTOs;
+using BioGuard.Api.Config;
 
 namespace BioGuard.Api.Controllers;
 
@@ -20,15 +21,18 @@ public class UsuariosWebController : ControllerBase
     private readonly UsuariosWebService _usuariosWebService;
     private readonly PacienteService _pacienteService;
     private readonly AuditoriaService _auditoriaService;
+    private readonly AccessControlService _accessControlService;
     private readonly ILogger<UsuariosWebController> _logger;
 
     public UsuariosWebController(UsuariosWebService usuariosWebService, PacienteService pacienteService,
-        AuditoriaService auditoriaService, ILogger<UsuariosWebController> logger)
+        AuditoriaService auditoriaService, ILogger<UsuariosWebController> logger,
+        AccessControlService accessControlService)
     {
         _usuariosWebService = usuariosWebService;
         _pacienteService = pacienteService;
         _auditoriaService = auditoriaService;
         _logger = logger;
+        _accessControlService = accessControlService;
     }
 
     // ── Perfil ────────────────────────────────────────────────
@@ -143,10 +147,12 @@ public class UsuariosWebController : ControllerBase
     public async Task<IActionResult> MiPlan()
     {
         var usuarioId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-        if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+        if (string.IsNullOrEmpty(usuarioId) || string.IsNullOrEmpty(role)) return Unauthorized();
 
         _logger.LogInformation("Getting plan for user {UsuarioId}", usuarioId);
-        var plan = await _usuariosWebService.GetPlanAsync(usuarioId);
+        var access = await _accessControlService.ResolveAsync(usuarioId, role);
+        var plan = access?.Plan;
         if (plan == null)
         {
             _logger.LogWarning("No plan found for user {UsuarioId}", usuarioId);
@@ -156,7 +162,35 @@ public class UsuariosWebController : ControllerBase
         return Ok(new PlanResponse(
             plan.Id, plan.Nombre, plan.Precio, plan.PrecioMoneda,
             plan.LimitePacientes, plan.LimiteCuidadores, plan.DiasHistorial,
-            plan.GpsContinuo, plan.AiConsole, plan.Descripcion));
+            plan.GpsContinuo, plan.AiConsole, plan.Descripcion,
+            plan.GuardianNocturnoDisponible, plan.ExportacionReportesDisponible));
+    }
+
+    [HttpGet("mi-acceso")]
+    public async Task<IActionResult> MiAcceso()
+    {
+        var usuarioId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+        var role = User.FindFirst(ClaimTypes.Role)?.Value;
+        if (string.IsNullOrEmpty(usuarioId) || string.IsNullOrEmpty(role)) return Unauthorized();
+
+        var access = await _accessControlService.ResolveAsync(usuarioId, role);
+        if (access == null) return Forbid();
+
+        PlanResponse? plan = access.Plan == null
+            ? null
+            : new PlanResponse(
+                access.Plan.Id, access.Plan.Nombre, access.Plan.Precio, access.Plan.PrecioMoneda,
+                access.Plan.LimitePacientes, access.Plan.LimiteCuidadores, access.Plan.DiasHistorial,
+                access.Plan.GpsContinuo, access.Plan.AiConsole, access.Plan.Descripcion,
+                access.Plan.GuardianNocturnoDisponible, access.Plan.ExportacionReportesDisponible);
+
+        return Ok(new EffectiveAccessResponse(
+            access.Role,
+            access.PatientId,
+            access.CaregiverAccessLevel,
+            access.CaregiverWithinPlan,
+            plan,
+            access.Permissions.OrderBy(p => p, StringComparer.Ordinal).ToArray()));
     }
 
     /// <summary>
@@ -164,6 +198,7 @@ public class UsuariosWebController : ControllerBase
     /// MÓDULO 2: Cambiar de plan (Gratis→Familiar→Pro)
     /// </summary>
     [HttpPut("cambiar-plan")]
+    [Authorize(Roles = SystemRoles.Dueno)]
     public async Task<IActionResult> CambiarPlan([FromBody] CambiarPlanRequest request)
     {
         var usuarioId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;

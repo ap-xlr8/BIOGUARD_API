@@ -32,20 +32,12 @@ public class PlanLimiteService : IPlanLimiteService
 
     private async Task<Plan?> GetPlanByDuenoIdAsync(string duenoId)
     {
-        var cacheKey = $"plan_{duenoId}";
-        if (!_cache.TryGetValue<Plan>(cacheKey, out var plan))
-        {
-            var dueno = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.Id == duenoId);
-            if (dueno != null)
-            {
-                plan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Id == dueno.PlanId);
-                if (plan != null)
-                {
-                    _cache.Set(cacheKey, plan, TimeSpan.FromMinutes(5));
-                }
-            }
-        }
-        return plan;
+        // Authorization-relevant subscription changes must take effect immediately.
+        // Do not authorize from a cached plan after a downgrade or cancellation.
+        var dueno = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.Id == duenoId);
+        return dueno == null
+            ? null
+            : await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Id == dueno.PlanId && p.Activo);
     }
 
     public async Task<PlanLimiteResult> VerificarLimiteCuidadoresAsync(string duenoId, string pacienteId)
@@ -53,12 +45,7 @@ public class PlanLimiteService : IPlanLimiteService
         var plan = await GetPlanByDuenoIdAsync(duenoId);
         if (plan == null) return new PlanLimiteResult(false, "Plan no encontrado");
 
-        var cacheKey = $"cuidadores_count_{pacienteId}";
-        if (!_cache.TryGetValue<long>(cacheKey, out var count))
-        {
-            count = await _db.CountDocumentsAsync(_db.Cuidadores, c => c.PacienteId == pacienteId);
-            _cache.Set(cacheKey, count, TimeSpan.FromMinutes(1));
-        }
+        var count = await _db.CountDocumentsAsync(_db.Cuidadores, c => c.PacienteId == pacienteId);
 
         if (count >= plan.LimiteCuidadores)
             return new PlanLimiteResult(false, $"Límite de cuidadores alcanzado ({plan.LimiteCuidadores})");

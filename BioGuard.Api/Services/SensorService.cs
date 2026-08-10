@@ -95,7 +95,8 @@ public class SensorService
     public async Task<(LecturaSensor lectura, double probabilidadPico, string? nivelRiesgo)?> InsertarLecturaAsync(
         string pacienteId, string dispositivoMac,
         int pulsoBpm, double temperaturaC, double sudoracionGsr,
-        double? hrv, int? spo2, DateTime? timestamp = null, int diasHistorial = 30, bool bypassRateLimit = false, bool? esSimulado = null)
+        double? hrv, int? spo2, DateTime? timestamp = null, int diasHistorial = 30,
+        bool bypassRateLimit = false, bool? esSimulado = null, string? sourceMessageId = null)
     {
         if (!ValidarRangosFisiologicos(pulsoBpm, temperaturaC, sudoracionGsr, spo2))
         {
@@ -127,6 +128,7 @@ public class SensorService
                 DispositivoMac = dispositivoMac
             },
             Timestamp = lecturaTimestamp,
+            SourceMessageId = sourceMessageId,
             PulsoBpm = pulsoBpm,
             TemperaturaC = temperaturaC,
             SudoracionGsr = sudoracionGsr,
@@ -500,12 +502,13 @@ public class SensorService
     }
 
     public async Task InsertarTrackingAsync(string pacienteId, string mac,
-        double longitud, double latitud, bool esEmergencia)
+        double longitud, double latitud, bool esEmergencia, string? sourceMessageId = null)
     {
         var tracking = new TrackingGps
         {
             Meta = new MetaData { PacienteId = pacienteId, DispositivoMac = mac },
             Timestamp = DateTime.UtcNow,
+            SourceMessageId = sourceMessageId,
             Ubicacion = new UbicacionGps(),
             UbicacionCifrada = _cripto.Encrypt($"{longitud},{latitud}"),
             EsEmergencia = esEmergencia

@@ -22,10 +22,12 @@ public class AlertasController : ControllerBase
     private readonly ILogger<AlertasController> _logger;
     private readonly OwnershipHelper _ownershipHelper;
     private readonly NotificacionService _notificacionService;
+    private readonly IPlanLimiteService _planLimiteService;
 
     public AlertasController(AlertaService alertaService, PacienteService pacienteService,
         IMongoDbContext db, AuditoriaService auditoriaService, ILogger<AlertasController> logger,
-        OwnershipHelper ownershipHelper, NotificacionService notificacionService)
+        OwnershipHelper ownershipHelper, NotificacionService notificacionService,
+        IPlanLimiteService planLimiteService)
     {
         _alertaService = alertaService;
         _pacienteService = pacienteService;
@@ -34,6 +36,7 @@ public class AlertasController : ControllerBase
         _logger = logger;
         _ownershipHelper = ownershipHelper;
         _notificacionService = notificacionService;
+        _planLimiteService = planLimiteService;
     }
 
     [HttpGet("by-paciente/{pacienteId}")]
@@ -87,7 +90,8 @@ public class AlertasController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(alerta.PacienteId, usuarioId, role!))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(
+                alerta.PacienteId, usuarioId, role!, OwnershipHelper.NivelHistorialCompleto))
             return Forbid();
 
         return Ok(new AlertaResponse(
@@ -252,6 +256,10 @@ public class AlertasController : ControllerBase
 
         // Obtener contacto de emergencia (dueno)
         var paciente = await _pacienteService.GetByIdAsync(alerta.PacienteId);
+        if (paciente == null) return NotFound(new { message = "Paciente no encontrado" });
+        var guardianCheck = await _planLimiteService.VerificarGuardianNocturnoAsync(paciente.UsuarioWebId);
+        if (!guardianCheck.Permitido)
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = guardianCheck.Motivo });
         string? contactoNombre = null;
         if (paciente != null)
         {

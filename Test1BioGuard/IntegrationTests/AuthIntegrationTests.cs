@@ -108,6 +108,11 @@ public class AuthIntegrationTests : IClassFixture<CustomWebApplicationFactory>
         var json = await response.Content.ReadAsStringAsync();
         var doc = JsonDocument.Parse(json);
         doc.RootElement.GetProperty("token").GetString().Should().NotBeNullOrEmpty();
+        doc.RootElement.TryGetProperty("refreshToken", out _).Should().BeFalse();
+        var cookie = response.Headers.GetValues("Set-Cookie").Single();
+        cookie.Should().Contain("bioguard_refresh_dev=");
+        cookie.ToLowerInvariant().Should().Contain("httponly");
+        cookie.ToLowerInvariant().Should().Contain("samesite=strict");
     }
 
     [Fact]

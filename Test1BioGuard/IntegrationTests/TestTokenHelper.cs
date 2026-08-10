@@ -18,6 +18,7 @@ public static class TestTokenHelper
         var claims = new List<Claim>
         {
             new("sub", userId),
+            new("jti", Guid.NewGuid().ToString("N")),
             new(ClaimTypes.NameIdentifier, userId),
             new(ClaimTypes.Role, role)
         };

@@ -113,7 +113,9 @@ public class UsuariosWebService
 
     public async Task<bool> CambiarPlanAsync(string usuarioId, string planNombre)
     {
-        var plan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Nombre == planNombre);
+        var aliases = PlanCatalog.Aliases(planNombre);
+        var plan = await _db.FindFirstOrDefaultAsync(
+            _db.Planes, p => aliases.Contains(p.Nombre) && p.Activo);
         if (plan == null)
         {
             _logger.LogWarning("Plan change failed: plan not found: {PlanNombre}", planNombre);

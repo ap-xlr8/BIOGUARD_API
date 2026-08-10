@@ -29,7 +29,7 @@ public record LoginCodigoResponse(
 public record AuthResponse(string Token, string UserId, string Nombre, string Rol, string Plan, bool Requires2FA = false, bool RequiresVerification = false, string? RefreshToken = null);
 
 public record RefreshTokenRequest(
-    [Required] [StringLength(512)] string RefreshToken);
+    [StringLength(512)] string RefreshToken = "");
 
 public record RefreshTokenResponse(string AccessToken, string RefreshToken);
 
@@ -106,7 +106,8 @@ public record LecturaSensorRequest(
     [Range(50, 100)] int? Spo2 = null,
     DateTime? Timestamp = null,
     [StringLength(50)] string? DispositivoMac = null,
-    bool? EsSimulado = null);
+    bool? EsSimulado = null,
+    [StringLength(200)] string? SourceMessageId = null);
 
 public record EventoMetabolicoResponse(
     string Id, string NivelRiesgo, double ProbabilidadMl,
@@ -119,7 +120,8 @@ public record TrackingGpsRequest(
     [Range(-180.0, 180.0)] double Longitud,
     [Range(-90.0, 90.0)] double Latitud,
     bool EsEmergencia,
-    [StringLength(50)] string? DispositivoMac = null);
+    [StringLength(50)] string? DispositivoMac = null,
+    [StringLength(200)] string? SourceMessageId = null);
 
 public record TrackingResponse(
     double Longitud, double Latitud, DateTime Timestamp, bool EsEmergencia);
@@ -134,7 +136,17 @@ public record NotificacionResponse(
 public record PlanResponse(
     string Id, string Nombre, decimal Precio, string PrecioMoneda,
     int LimitePacientes, int LimiteCuidadores, int DiasHistorial,
-    bool GpsContinuo, bool AiConsole, string Descripcion);
+    bool GpsContinuo, bool AiConsole, string Descripcion,
+    bool GuardianNocturnoDisponible = false,
+    bool ExportacionReportesDisponible = false);
+
+public record EffectiveAccessResponse(
+    string Rol,
+    string? PacienteId,
+    string? NivelAccesoCuidador,
+    bool CuidadorDentroDelPlan,
+    PlanResponse? Plan,
+    IReadOnlyCollection<string> Permisos);
 
 // ── Usuarios Web ──────────────────────────────────────────
 

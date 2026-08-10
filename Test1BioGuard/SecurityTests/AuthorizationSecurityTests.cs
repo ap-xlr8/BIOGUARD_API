@@ -132,10 +132,10 @@ public class AuthorizationSecurityTests : IClassFixture<IntegrationTests.CustomW
     }
 
     [Fact]
-    public async Task IDOR_Medicamentos_CuidadorPuedeVerPacienteB_Retorna200()
+    public async Task IDOR_Medicamentos_CuidadorResumenNoPuedeVerDetallePacienteB_Retorna403()
     {
         SetupFindToListAsyncEmpty(_mockMedicamentos);
-        var cuidadorAsignado = new Cuidador { Id = "c1", UsuarioWebId = CuidadorId, PacienteId = PacienteBId, Nombre = "Cuidador Test", NivelAcceso = "resumen_semanal" };
+        var cuidadorAsignado = new Cuidador { Id = CuidadorId, UsuarioWebId = CuidadorId, PacienteId = PacienteBId, Nombre = "Cuidador Test", NivelAcceso = "resumen_semanal" };
         SetupFindFirstOrDefaultAsync(_mockCuidadores, cuidadorAsignado);
 
         _client.DefaultRequestHeaders.Authorization =
@@ -144,7 +144,7 @@ public class AuthorizationSecurityTests : IClassFixture<IntegrationTests.CustomW
 
         var response = await _client.GetAsync($"/api/Medicamentos/by-paciente/{PacienteBId}");
 
-        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
     }
 
     [Fact]
@@ -215,7 +215,7 @@ public class AuthorizationSecurityTests : IClassFixture<IntegrationTests.CustomW
     public async Task IDOR_Alertas_CuidadorPuedeVerPacienteB_Retorna200()
     {
         SetupFindToListAsyncEmpty(_mockAlertas);
-        var cuidadorAsignado = new Cuidador { Id = "c1", UsuarioWebId = CuidadorId, PacienteId = PacienteBId, Nombre = "Cuidador Test" };
+        var cuidadorAsignado = new Cuidador { Id = CuidadorId, UsuarioWebId = CuidadorId, PacienteId = PacienteBId, Nombre = "Cuidador Test", NivelAcceso = "resumen_semanal" };
         SetupFindFirstOrDefaultAsync(_mockCuidadores, cuidadorAsignado);
 
         _client.DefaultRequestHeaders.Authorization =
@@ -329,7 +329,14 @@ public class AuthorizationSecurityTests : IClassFixture<IntegrationTests.CustomW
         SetupFindToListAsyncEmpty(_mockEventos);
         SetupFindToListAsyncEmpty(_mockAlertas);
         SetupFindToListAsyncEmpty(_mockMedicamentos);
-        var cuidadorAsignado = new Cuidador { Id = "c1", UsuarioWebId = CuidadorId, PacienteId = PacienteBId, Nombre = "Cuidador Test" };
+        var cuidadorAsignado = new Cuidador
+        {
+            Id = CuidadorId,
+            UsuarioWebId = CuidadorId,
+            PacienteId = PacienteBId,
+            Nombre = "Cuidador Test",
+            NivelAcceso = "resumen_semanal"
+        };
         SetupFindFirstOrDefaultAsync(_mockCuidadores, cuidadorAsignado);
 
         _client.DefaultRequestHeaders.Authorization =
@@ -730,9 +737,9 @@ public class AuthorizationSecurityTests : IClassFixture<IntegrationTests.CustomW
     // CUIDADOR NIVEL DE ACCESO ESCALATION TESTS
     // ═══════════════════════════════════════════════════════════════
 
-    private void SetupCuidadorOwnership()
+    private void SetupCuidadorOwnership(string nivelAcceso = "solo_alertas")
     {
-        var cuidadorAsignado = new Cuidador { Id = "c1", UsuarioWebId = CuidadorId, PacienteId = PacienteBId, Nombre = "Cuidador Test" };
+        var cuidadorAsignado = new Cuidador { Id = CuidadorId, UsuarioWebId = CuidadorId, PacienteId = PacienteBId, Nombre = "Cuidador Test", NivelAcceso = nivelAcceso };
         SetupFindFirstOrDefaultAsync(_mockCuidadores, cuidadorAsignado);
 
         var pacienteB = new Paciente { Id = PacienteBId, UsuarioWebId = DuenoBId, Nombre = "Paciente B" };
@@ -791,7 +798,7 @@ public class AuthorizationSecurityTests : IClassFixture<IntegrationTests.CustomW
     [Fact]
     public async Task NivelAcceso_CuidadorResumenSemanalNoPuedeCompartirReporte_Retorna403()
     {
-        SetupCuidadorOwnership();
+        SetupCuidadorOwnership("resumen_semanal");
 
         _client.DefaultRequestHeaders.Authorization =
             new("Bearer", IntegrationTests.TestTokenHelper.GenerateCuidadorToken(CuidadorId, "resumen_semanal"));
@@ -804,7 +811,7 @@ public class AuthorizationSecurityTests : IClassFixture<IntegrationTests.CustomW
     [Fact]
     public async Task NivelAcceso_CuidadorHistoricoCompletoPuedeCompartirReporte_Retorna200()
     {
-        SetupCuidadorOwnership();
+        SetupCuidadorOwnership("historial_completo");
 
         var reporte = new ReporteCompartido
         {

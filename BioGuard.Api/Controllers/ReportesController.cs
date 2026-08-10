@@ -24,6 +24,7 @@ public class ReportesController : ControllerBase
     private readonly OwnershipHelper _ownershipHelper;
     private readonly AuditoriaService _auditoriaService;
     private readonly ILogger<ReportesController> _logger;
+    private readonly IPlanLimiteService _planLimiteService;
 
     public ReportesController(
         SensorService sensorService,
@@ -33,7 +34,8 @@ public class ReportesController : ControllerBase
         IMongoDbContext db,
         ILogger<ReportesController> logger,
         OwnershipHelper ownershipHelper,
-        AuditoriaService auditoriaService)
+        AuditoriaService auditoriaService,
+        IPlanLimiteService planLimiteService)
     {
         _sensorService = sensorService;
         _alertaService = alertaService;
@@ -43,6 +45,7 @@ public class ReportesController : ControllerBase
         _logger = logger;
         _ownershipHelper = ownershipHelper;
         _auditoriaService = auditoriaService;
+        _planLimiteService = planLimiteService;
     }
 
     private async Task<bool> VerifyPacienteAccessAsync(string pacienteId)
@@ -168,13 +171,13 @@ public class ReportesController : ControllerBase
         var reporte = await _db.FindFirstOrDefaultAsync(_db.ReportesCompartidos, r => r.TokenAcceso == token);
         if (reporte == null)
         {
-            _logger.LogWarning("Shared report token not found: {Token}", token);
+            _logger.LogWarning("Shared report token not found: {TokenFingerprint}", SecurityLog.Fingerprint(token));
             return NotFound(new { error = "Reporte no encontrado" });
         }
 
         if (!reporte.Activo || reporte.FechaExpiracion < DateTime.UtcNow)
         {
-            _logger.LogWarning("Shared report token expired: {Token}", token);
+            _logger.LogWarning("Shared report token expired: {TokenFingerprint}", SecurityLog.Fingerprint(token));
             return NotFound(new { error = "Reporte expirado o desactivado" });
         }
 
@@ -230,18 +233,18 @@ public class ReportesController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (string.IsNullOrEmpty(role) || (role != "dueno" && role != "cuidador"))
+        if (string.IsNullOrEmpty(role) || (role != SystemRoles.Dueno && role != SystemRoles.Cuidador))
             return Forbid();
 
-        if (role == "cuidador")
-        {
-            var nivelAcceso = User.FindFirst("nivel_acceso")?.Value;
-            if (nivelAcceso != "historial_completo")
-                return Forbid();
-        }
-
-        if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(pacienteId, usuarioId, role))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(
+                pacienteId, usuarioId, role, OwnershipHelper.NivelHistorialCompleto))
             return Forbid();
+
+        var paciente = await _pacienteService.GetByIdAsync(pacienteId);
+        if (paciente == null) return NotFound();
+        var exportCheck = await _planLimiteService.VerificarExportacionReportesAsync(paciente.UsuarioWebId);
+        if (!exportCheck.Permitido)
+            return StatusCode(StatusCodes.Status403Forbidden, new { message = exportCheck.Motivo });
 
         if (request.DiasValidez < 1 || request.DiasValidez > 30)
             return BadRequest(new { message = "Días de validez debe estar entre 1 y 30" });

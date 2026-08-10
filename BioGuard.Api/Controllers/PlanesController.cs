@@ -43,7 +43,8 @@ public class PlanesController : ControllerBase
         var response = planes.Select(p => new PlanResponse(
             p.Id, p.Nombre, p.Precio, p.PrecioMoneda,
             p.LimitePacientes, p.LimiteCuidadores, p.DiasHistorial,
-            p.GpsContinuo, p.AiConsole, p.Descripcion
+            p.GpsContinuo, p.AiConsole, p.Descripcion,
+            p.GuardianNocturnoDisponible, p.ExportacionReportesDisponible
         )).ToList();
 
         return Ok(response);
@@ -65,7 +66,8 @@ public class PlanesController : ControllerBase
         return Ok(new PlanResponse(
             plan.Id, plan.Nombre, plan.Precio, plan.PrecioMoneda,
             plan.LimitePacientes, plan.LimiteCuidadores, plan.DiasHistorial,
-            plan.GpsContinuo, plan.AiConsole, plan.Descripcion
+            plan.GpsContinuo, plan.AiConsole, plan.Descripcion,
+            plan.GuardianNocturnoDisponible, plan.ExportacionReportesDisponible
         ));
     }
 
@@ -87,6 +89,8 @@ public class PlanesController : ControllerBase
             DiasHistorial = request.DiasHistorial,
             GpsContinuo = request.GpsContinuo,
             AiConsole = request.AiConsole,
+            GuardianNocturnoDisponible = request.GuardianNocturnoDisponible,
+            ExportacionReportesDisponible = request.ExportacionReportesDisponible,
             Descripcion = request.Descripcion,
             Activo = true,
             Orden = request.Orden
@@ -114,6 +118,8 @@ public class PlanesController : ControllerBase
             .Set(p => p.DiasHistorial, request.DiasHistorial)
             .Set(p => p.GpsContinuo, request.GpsContinuo)
             .Set(p => p.AiConsole, request.AiConsole)
+            .Set(p => p.GuardianNocturnoDisponible, request.GuardianNocturnoDisponible)
+            .Set(p => p.ExportacionReportesDisponible, request.ExportacionReportesDisponible)
             .Set(p => p.Descripcion, request.Descripcion)
             .Set(p => p.Orden, request.Orden);
 
@@ -161,30 +167,7 @@ public class PlanesController : ControllerBase
         }
 
         _logger.LogInformation("Seeding default plans");
-        var planes = new List<Plan>
-        {
-            new()
-            {
-                Nombre = "Gratis", Precio = 0m, PrecioMoneda = "MXN",
-                LimitePacientes = 1, LimiteCuidadores = 0, DiasHistorial = 30,
-                GpsContinuo = false, AiConsole = false, Activo = true, Orden = 1,
-                Descripcion = "Plan gratuito actualizado"
-            },
-            new()
-            {
-                Nombre = "Familiar", Precio = 10m, PrecioMoneda = "MXN",
-                LimitePacientes = 1, LimiteCuidadores = 3, DiasHistorial = 15,
-                GpsContinuo = false, AiConsole = false, Activo = true, Orden = 2,
-                Descripcion = "Plan familiar con GPS y hasta 3 cuidadores"
-            },
-            new()
-            {
-                Nombre = "Pro", Precio = 20m, PrecioMoneda = "MXN",
-                LimitePacientes = 1, LimiteCuidadores = 6, DiasHistorial = 30,
-                GpsContinuo = true, AiConsole = true, Activo = true, Orden = 3,
-                Descripcion = "Plan profesional con AI Console y funciones avanzadas"
-            }
-        };
+        var planes = PlanCatalog.CreateDefaultPlans();
 
         foreach (var plan in planes)
         {
@@ -198,34 +181,56 @@ public class PlanesController : ControllerBase
     }
 
     // POST /api/Planes/migrate-prices [WEB] - Admin
-    // One-time endpoint to update existing plans pricing + limits
+    // Idempotent endpoint that reconciles legacy names without changing plan IDs.
 
     [HttpPost("migrate-prices")]
     [Authorize(Roles = "administrador")]
     public async Task<IActionResult> MigratePrices()
     {
-        _logger.LogInformation("Migrating plan prices to MXN");
-        var planUpdates = new Dictionary<string, (decimal Precio, int Cuidadores, string Desc)>
-        {
-            ["Gratis"] = (0m, 0, "Plan gratuito actualizado"),
-            ["Familiar"] = (10m, 3, "Plan familiar con GPS y hasta 3 cuidadores"),
-            ["Pro"] = (20m, 6, "Plan profesional con AI Console y funciones avanzadas")
-        };
-
+        _logger.LogInformation("Reconciling production plan catalog");
         var updated = 0;
-        foreach (var (nombre, (precio, cuidadores, desc)) in planUpdates)
+        var inserted = 0;
+
+        foreach (var canonical in PlanCatalog.CreateDefaultPlans())
         {
+            var aliases = PlanCatalog.Aliases(canonical.Nombre);
+            var existing = await _db.FindFirstOrDefaultAsync(
+                _db.Planes,
+                plan => aliases.Contains(plan.Nombre));
+
+            if (existing == null)
+            {
+                await _db.Planes.InsertOneAsync(canonical);
+                inserted++;
+                continue;
+            }
+
             var update = Builders<Plan>.Update
-                .Set(p => p.Precio, precio)
-                .Set(p => p.PrecioMoneda, "MXN")
-                .Set(p => p.LimiteCuidadores, cuidadores)
-                .Set(p => p.Descripcion, desc);
-            var result = await _db.Planes.UpdateOneAsync(p => p.Nombre == nombre, update);
+                .Set(p => p.Nombre, canonical.Nombre)
+                .Set(p => p.Precio, canonical.Precio)
+                .Set(p => p.PrecioMoneda, canonical.PrecioMoneda)
+                .Set(p => p.LimitePacientes, canonical.LimitePacientes)
+                .Set(p => p.LimiteCuidadores, canonical.LimiteCuidadores)
+                .Set(p => p.DiasHistorial, canonical.DiasHistorial)
+                .Set(p => p.GpsContinuo, canonical.GpsContinuo)
+                .Set(p => p.AiConsole, canonical.AiConsole)
+                .Set(p => p.GuardianNocturnoDisponible, canonical.GuardianNocturnoDisponible)
+                .Set(p => p.ExportacionReportesDisponible, canonical.ExportacionReportesDisponible)
+                .Set(p => p.Descripcion, canonical.Descripcion)
+                .Set(p => p.Activo, true)
+                .Set(p => p.Orden, canonical.Orden);
+
+            var result = await _db.Planes.UpdateOneAsync(p => p.Id == existing.Id, update);
             updated += (int)result.ModifiedCount;
         }
 
-        _logger.LogInformation("Plan price migration completed, {Updated} plans updated", updated);
-        return Ok(new { message = $"Planes actualizados a MXN", updated });
+        var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        await _auditoriaService.RegistrarAsync("admin", "migrar_catalogo_planes", "planes", "catalogo-produccion", ip);
+        _logger.LogInformation(
+            "Plan catalog reconciliation completed: {Updated} updated, {Inserted} inserted",
+            updated,
+            inserted);
+        return Ok(new { message = "Catalogo de planes reconciliado", updated, inserted });
     }
 }
 
@@ -238,6 +243,8 @@ public record CrearPlanRequest(
     int DiasHistorial = 30,
     bool GpsContinuo = false,
     bool AiConsole = false,
+    bool GuardianNocturnoDisponible = false,
+    bool ExportacionReportesDisponible = false,
     [Required] string Descripcion = "",
     int Orden = 1);
 

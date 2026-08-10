@@ -15,6 +15,8 @@ namespace BioGuard.Api.Controllers;
 [Route("api/[controller]")]
 public class AuthController : ControllerBase
 {
+    private const string ProductionRefreshCookie = "__Host-bioguard_refresh";
+    private const string DevelopmentRefreshCookie = "bioguard_refresh_dev";
     private readonly AuthService _authService;
     private readonly AuditoriaService _auditoriaService;
     private readonly ILogger<AuthController> _logger;
@@ -25,6 +27,54 @@ public class AuthController : ControllerBase
         _auditoriaService = auditoriaService;
         _logger = logger;
     }
+
+    private void SetWebRefreshCookie(string? refreshToken)
+    {
+        if (string.IsNullOrWhiteSpace(refreshToken)) return;
+        var secure = Request.IsHttps;
+        Response.Cookies.Append(
+            secure ? ProductionRefreshCookie : DevelopmentRefreshCookie,
+            refreshToken,
+            new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = secure,
+                SameSite = SameSiteMode.Strict,
+                Path = "/",
+                MaxAge = TimeSpan.FromDays(7),
+                IsEssential = true
+            });
+    }
+
+    private string? GetWebRefreshCookie()
+    {
+        return Request.Cookies[ProductionRefreshCookie]
+            ?? Request.Cookies[DevelopmentRefreshCookie];
+    }
+
+    private void ClearWebRefreshCookie()
+    {
+        var options = new CookieOptions
+        {
+            HttpOnly = true,
+            Secure = Request.IsHttps,
+            SameSite = SameSiteMode.Strict,
+            Path = "/"
+        };
+        Response.Cookies.Delete(ProductionRefreshCookie, options);
+        Response.Cookies.Delete(DevelopmentRefreshCookie, options);
+    }
+
+    private static object ToWebAuthResponse(AuthResponse result) => new
+    {
+        result.Token,
+        result.UserId,
+        result.Nombre,
+        result.Rol,
+        result.Plan,
+        result.Requires2FA,
+        result.RequiresVerification
+    };
 
     // ── Registro ──────────────────────────────────────────────
     // POST /api/Auth/register [WEB]
@@ -71,7 +121,8 @@ public class AuthController : ControllerBase
         {
             return Ok(new { message = "Código 2FA enviado al correo", requires2FA = true, userId = result.UserId });
         }
-        return Ok(result);
+        SetWebRefreshCookie(result.RefreshToken);
+        return Ok(ToWebAuthResponse(result));
     }
 
     // POST /api/Auth/login-google [WEB]
@@ -87,7 +138,8 @@ public class AuthController : ControllerBase
             return Unauthorized(new { message = "Token de Google inválido" });
         }
         _logger.LogInformation("Google login successful");
-        return Ok(result);
+        SetWebRefreshCookie(result.RefreshToken);
+        return Ok(ToWebAuthResponse(result));
     }
 
     // POST /api/Auth/login-codigo [MÓVIL]
@@ -137,25 +189,37 @@ public class AuthController : ControllerBase
             return BadRequest(new { message = "Código inválido o expirado" });
         }
         _logger.LogInformation("2FA verification successful");
-        return Ok(result);
+        SetWebRefreshCookie(result.RefreshToken);
+        return Ok(ToWebAuthResponse(result));
     }
 
     // ── Refresh Token ──────────────────────────────────────
     // POST /api/Auth/refresh [WEB]
 
     [HttpPost("refresh")]
-    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest request)
+    public async Task<IActionResult> RefreshToken([FromBody] RefreshTokenRequest? request)
     {
         _logger.LogInformation("Token refresh attempt");
+        var bodyRefreshToken = request?.RefreshToken;
+        var mobileTokenSupplied = !string.IsNullOrWhiteSpace(bodyRefreshToken);
+        var refreshToken = mobileTokenSupplied
+            ? bodyRefreshToken
+            : GetWebRefreshCookie();
+        if (string.IsNullOrWhiteSpace(refreshToken))
+            return Unauthorized(new { message = "Refresh token requerido" });
+
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString();
-        var result = await _authService.RefreshTokenAsync(request, ip);
+        var result = await _authService.RefreshTokenAsync(new RefreshTokenRequest(refreshToken), ip);
         if (result == null)
         {
             _logger.LogWarning("Token refresh failed - invalid or expired refresh token");
             return Unauthorized(new { message = "Refresh token inválido o expirado" });
         }
         _logger.LogInformation("Token refresh successful");
-        return Ok(result);
+        SetWebRefreshCookie(result.RefreshToken);
+        return mobileTokenSupplied
+            ? Ok(result)
+            : Ok(new { result.AccessToken });
     }
 
     // ── Recuperación de contraseña ────────────────────────────
@@ -228,6 +292,7 @@ public class AuthController : ControllerBase
         var userId = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
         if (userId != null)
             await _authService.RevokeRefreshTokenChainAsync(userId);
+        ClearWebRefreshCookie();
         _logger.LogInformation("User logged out, token revoked: {Jti}", SecurityLog.Fingerprint(jti));
         userId ??= "unknown";
         var ip = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";

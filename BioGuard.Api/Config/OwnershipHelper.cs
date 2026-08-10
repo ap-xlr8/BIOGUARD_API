@@ -1,66 +1,61 @@
-using MongoDB.Driver;
-using BioGuard.Api.Models;
+using BioGuard.Api.Services;
 
 namespace BioGuard.Api.Config;
 
 public class OwnershipHelper
 {
-    public const string NivelSoloAlertas = "solo_alertas";
-    public const string NivelResumenSemanal = "resumen_semanal";
-    public const string NivelHistorialCompleto = "historial_completo";
-
-    private static readonly Dictionary<string, int> JerarquiaNiveles = new()
-    {
-        [NivelSoloAlertas] = 0,
-        [NivelResumenSemanal] = 1,
-        [NivelHistorialCompleto] = 2
-    };
+    public const string NivelSoloAlertas = CaregiverAccessLevels.SoloAlertas;
+    public const string NivelResumenSemanal = CaregiverAccessLevels.ResumenSemanal;
+    public const string NivelHistorialCompleto = CaregiverAccessLevels.HistorialCompleto;
 
     private readonly IMongoDbContext _db;
+    private readonly AccessControlService _accessControl;
 
-    public OwnershipHelper(IMongoDbContext db)
+    public OwnershipHelper(IMongoDbContext db, AccessControlService accessControl)
     {
         _db = db;
+        _accessControl = accessControl;
     }
 
     public async Task<bool> VerifyPacienteOwnershipAsync(string pacienteId, string userId, string role)
     {
-        if (role == "paciente") return pacienteId == userId;
-        if (role == "cuidador")
+        if (role == SystemRoles.Paciente) return pacienteId == userId;
+        if (role == SystemRoles.Cuidador)
         {
-            var cuidador = await _db.FindFirstOrDefaultAsync(_db.Cuidadores, c => c.Id == userId && c.PacienteId == pacienteId);
-            return cuidador != null;
+            var access = await _accessControl.ResolveAsync(userId, role);
+            return access is { CaregiverWithinPlan: true } && access.PatientId == pacienteId;
         }
 
-        // dueno role — check patient is owned by this user
+        if (role != SystemRoles.Dueno) return false;
         var paciente = await _db.FindFirstOrDefaultAsync(_db.Pacientes, p => p.Id == pacienteId);
-        if (paciente == null) return false;
-        return paciente.UsuarioWebId == userId;
+        return paciente?.UsuarioWebId == userId;
     }
 
-    /// <summary>
-    /// Verifica la propiedad del paciente y, para cuidadores, que su nivel de acceso
-    /// sea suficiente para el recurso solicitado (nivelMinimo). El nivel del cuidador
-    /// se toma del claim del token cuando está disponible; si no, se consulta a la BD.
-    /// </summary>
-    public async Task<bool> VerifyPacienteAccessAsync(string pacienteId, string userId, string role,
-        string? nivelMinimo = null, string? nivelActual = null)
+    public async Task<bool> VerifyPacienteAccessAsync(
+        string pacienteId,
+        string userId,
+        string role,
+        string? nivelMinimo = null,
+        string? nivelActual = null)
     {
-        if (role == "paciente") return pacienteId == userId;
+        if (role == SystemRoles.Paciente) return pacienteId == userId;
 
-        if (role == "cuidador")
+        if (role == SystemRoles.Cuidador)
         {
-            var cuidador = await _db.FindFirstOrDefaultAsync(_db.Cuidadores, c => c.Id == userId && c.PacienteId == pacienteId);
-            if (cuidador == null) return false;
+            var access = await _accessControl.ResolveAsync(userId, role);
+            if (access is not { CaregiverWithinPlan: true } || access.PatientId != pacienteId) return false;
             if (string.IsNullOrEmpty(nivelMinimo)) return true;
+            if (!CaregiverAccessLevels.Rank.TryGetValue(nivelMinimo, out var required)) return false;
 
-            var nivel = nivelActual ?? cuidador.NivelAcceso;
-            return JerarquiaNiveles.GetValueOrDefault(nivel) >= JerarquiaNiveles.GetValueOrDefault(nivelMinimo);
+            // Database state is authoritative. JWT access-level claims are intentionally ignored
+            // so caregiver downgrades and plan downgrades take effect on the next request.
+            var actual = CaregiverAccessLevels.Rank.GetValueOrDefault(
+                access.CaregiverAccessLevel ?? string.Empty, -1);
+            return actual >= required;
         }
 
-        // dueno role — check patient is owned by this user
+        if (role != SystemRoles.Dueno) return false;
         var paciente = await _db.FindFirstOrDefaultAsync(_db.Pacientes, p => p.Id == pacienteId);
-        if (paciente == null) return false;
-        return paciente.UsuarioWebId == userId;
+        return paciente?.UsuarioWebId == userId;
     }
 }

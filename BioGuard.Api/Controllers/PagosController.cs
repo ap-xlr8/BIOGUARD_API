@@ -13,7 +13,7 @@ namespace BioGuard.Api.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Roles = SystemRoles.Dueno)]
 public class PagosController : ControllerBase
 {
     private readonly PagosService _pagosService;
@@ -59,7 +59,9 @@ public class PagosController : ControllerBase
 
         _logger.LogInformation("Creating payment session for user {UsuarioId}, plan {PlanNombre}, procesador {Procesador}", usuarioId, request.PlanNombre, request.Procesador);
 
-        var plan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Nombre == request.PlanNombre);
+        var aliases = PlanCatalog.Aliases(request.PlanNombre);
+        var plan = await _db.FindFirstOrDefaultAsync(
+            _db.Planes, p => aliases.Contains(p.Nombre) && p.Activo);
         if (plan == null)
         {
             _logger.LogWarning("Invalid plan {PlanNombre} for payment session by user {UsuarioId}", request.PlanNombre, usuarioId);
@@ -246,6 +248,12 @@ public class PagosController : ControllerBase
     {
         try
         {
+            if (Request.ContentType == null || !Request.ContentType.StartsWith("application/json"))
+            {
+                _logger.LogWarning("Invalid Content-Type for Stripe webhook: {ContentType}", Request.ContentType);
+                return BadRequest(new { error = "Content-Type must be application/json" });
+            }
+
             using var reader = new StreamReader(Request.Body);
             var payload = await reader.ReadToEndAsync();
             var headers = new Dictionary<string, string>

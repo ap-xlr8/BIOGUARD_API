@@ -54,20 +54,9 @@ public class AuthService
             return null;
         }
 
-        var plan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Nombre == request.PlanNombre);
-        if (plan == null)
-        {
-            // Match case-insensitive + aliases (planes actuales: Gratis/Familiar/Pro)
-            var alias = request.PlanNombre.Trim().ToLowerInvariant() switch
-            {
-                "gratis" or "free" or "bio guard free" => "Gratis",
-                "familiar" or "family" or "familia" or "plus" or "care" => "Familiar",
-                "pro" or "pro salud" or "prosalud" => "Pro",
-                _ => request.PlanNombre
-            };
-            plan = await _db.FindFirstOrDefaultAsync(_db.Planes,
-                p => p.Nombre.ToLower() == alias.ToLower());
-        }
+        var planAliases = PlanCatalog.Aliases(request.PlanNombre);
+        var plan = await _db.FindFirstOrDefaultAsync(
+            _db.Planes, p => planAliases.Contains(p.Nombre) && p.Activo);
         if (plan == null)
         {
             _logger.LogWarning("Registration attempt with invalid plan: {PlanNombre}", request.PlanNombre);
@@ -138,7 +127,7 @@ public class AuthService
                 _logger.LogWarning("Account locked for user {Correo} after {Attempts} failed attempts", SecurityLog.MaskEmail(request.Correo), attempts);
             }
             await _db.UsuariosWeb.UpdateOneAsync(u => u.Id == user.Id, update);
-            _logger.LogWarning("Invalid password for user: {UserId}", user.Id);
+            _logger.LogWarning("Invalid password for user: {UserId}", user.Id);
             return null;
         }
 
@@ -150,7 +139,19 @@ public class AuthService
                     .Set(u => u.LockedUntil, null));
         }
 
-        if (user.TwoFactorHabilitado)
+        var role = "dueno";
+        if (user.Correo.EndsWith("@bioguard.app") || user.Correo == "admin@bioguard.test")
+        {
+            role = SystemRoles.Administrador;
+        }
+
+        var requires2FA = user.TwoFactorHabilitado;
+        if (role == SystemRoles.Administrador && !requires2FA)
+        {
+            requires2FA = true;
+        }
+
+        if (requires2FA)
         {
             var codigo = RandomNumberString(6);
             var expira = DateTime.UtcNow.AddMinutes(10);
@@ -165,11 +166,11 @@ public class AuthService
 
         var plan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Id == user.PlanId);
         var duenoExtra = await PacienteIdClaimParaDuenoAsync(user.Id);
-        var token = GenerateToken(user.Id, user.Correo, "dueno", duenoExtra);
+        var token = GenerateToken(user.Id, user.Correo, role, duenoExtra);
         var refreshToken = await CreateAndStoreRefreshTokenAsync(user.Id);
         _logger.LogInformation("User logged in successfully: {UserId}", user.Id);
 
-        return new AuthResponse(token, user.Id, $"{user.Nombre} {user.ApellidoPaterno}", "dueno", plan?.Nombre ?? "Sin plan", RefreshToken: refreshToken);
+        return new AuthResponse(token, user.Id, $"{user.Nombre} {user.ApellidoPaterno}", role, plan?.Nombre ?? "Sin plan", RefreshToken: refreshToken);
     }
 
     // ── Login Google ───────────────────────────────────────
@@ -187,7 +188,9 @@ public class AuthService
 
         if (user == null)
         {
-            var plan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Nombre == "Gratis");
+            var freeAliases = PlanCatalog.Aliases(PlanCatalog.Free);
+            var plan = await _db.FindFirstOrDefaultAsync(
+                _db.Planes, p => freeAliases.Contains(p.Nombre) && p.Activo);
             if (plan == null) return null;
 
             user = new UsuarioWeb

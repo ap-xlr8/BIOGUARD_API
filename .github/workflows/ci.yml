@@ -40,7 +40,7 @@ jobs:
         run: dotnet build --configuration Release
 
       - name: Dockerfile Lint (hadolint)
-        uses: hadolint/hadolint-action@v3.1.0
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf # v3.1.0
         with:
           dockerfile: BioGuard.Api/Dockerfile
           config: .hadolint.yaml
@@ -73,7 +73,7 @@ jobs:
 
       - name: Enforce Coverage Threshold
         env:
-          COVERAGE_THRESHOLD: ${{ vars.COVERAGE_THRESHOLD || '35' }}
+          COVERAGE_THRESHOLD: ${{ vars.COVERAGE_THRESHOLD || '70' }}
         run: |
           echo "Coverage threshold: ${COVERAGE_THRESHOLD}%"
           TOTAL=0; COVERED=0
@@ -93,7 +93,8 @@ jobs:
             fi
           done
           if [ "$TOTAL" -eq 0 ]; then
-            echo "::warning::No coverage.cobertura.xml found or parsed, proceeding without blocking build"
+            echo "::error::No coverage.cobertura.xml found or parsed"
+            exit 1
           else
             PCT=$((COVERED * 100 / TOTAL))
             echo "Line coverage: ${COVERED}/${TOTAL} = ${PCT}%"
@@ -186,7 +187,7 @@ jobs:
     name: Deploy to Staging
     needs: docker-build
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: staging
     permissions:
       contents: read
@@ -229,7 +230,7 @@ jobs:
     name: Promote to Production
     needs: deploy-staging
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/master'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment:
       name: production
       url: https://bioguard-api-lkvnq.ondigitalocean.app

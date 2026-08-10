@@ -24,10 +24,12 @@ public class SensoresController : ControllerBase
     private readonly ILogger<SensoresController> _logger;
     private readonly OwnershipHelper _ownershipHelper;
     private readonly IPlanLimiteService _planLimiteService;
+    private readonly IdempotencyService _idempotencyService;
 
     public SensoresController(SensorService sensorService, PacienteService pacienteService,
         IMongoDbContext db, AuditoriaService auditoriaService, ILogger<SensoresController> logger,
-        OwnershipHelper ownershipHelper, IPlanLimiteService planLimiteService)
+        OwnershipHelper ownershipHelper, IPlanLimiteService planLimiteService,
+        IdempotencyService idempotencyService)
     {
         _sensorService = sensorService;
         _pacienteService = pacienteService;
@@ -36,6 +38,7 @@ public class SensoresController : ControllerBase
         _logger = logger;
         _ownershipHelper = ownershipHelper;
         _planLimiteService = planLimiteService;
+        _idempotencyService = idempotencyService;
     }
 
     // Resuelve la MAC del dispositivo: prioriza la enviada por el cliente (request o header),
@@ -106,12 +109,45 @@ public class SensoresController : ControllerBase
         var count = 0;
         foreach (var lectura in request)
         {
+            var lease = await _idempotencyService.TryAcquireAsync(
+                "sensor-reading", pacienteId, lectura.SourceMessageId);
+            if (lease == IdempotencyLeaseStatus.Completed)
+            {
+                count++;
+                continue;
+            }
+            if (lease == IdempotencyLeaseStatus.InProgress)
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    new { message = "Lote en procesamiento; reintente" });
+
             var macAddress = ResolverMac(lectura.DispositivoMac, pacienteId);
-            var result = await _sensorService.InsertarLecturaAsync(
-                pacienteId, macAddress, lectura.PulsoBpm, lectura.TemperaturaC,
-                lectura.SudoracionGsr, lectura.Hrv, lectura.Spo2, lectura.Timestamp,
-                bypassRateLimit: true);
-            if (result != null) count++;
+            var persisted = false;
+            try
+            {
+                var result = await _sensorService.InsertarLecturaAsync(
+                    pacienteId, macAddress, lectura.PulsoBpm, lectura.TemperaturaC,
+                    lectura.SudoracionGsr, lectura.Hrv, lectura.Spo2, lectura.Timestamp,
+                    bypassRateLimit: true, sourceMessageId: lectura.SourceMessageId);
+                if (result != null)
+                {
+                    persisted = true;
+                    count++;
+                    await _idempotencyService.CompleteAsync(
+                        "sensor-reading", pacienteId, lectura.SourceMessageId, result.Value.lectura.Id);
+                }
+                else
+                {
+                    await _idempotencyService.AbortAsync(
+                        "sensor-reading", pacienteId, lectura.SourceMessageId);
+                }
+            }
+            catch
+            {
+                if (!persisted)
+                    await _idempotencyService.AbortAsync(
+                        "sensor-reading", pacienteId, lectura.SourceMessageId);
+                throw;
+            }
         }
 
         return Ok(new { procesadas = count, message = "Lote procesado" });
@@ -393,6 +429,9 @@ public class SensoresController : ControllerBase
         var paciente = await _pacienteService.GetByIdAsync(pacienteId);
         if (paciente != null)
         {
+            var exportCheck = await _planLimiteService.VerificarExportacionReportesAsync(paciente.UsuarioWebId);
+            if (!exportCheck.Permitido)
+                return StatusCode(StatusCodes.Status403Forbidden, new { message = exportCheck.Motivo });
             var planCheck = await _planLimiteService.VerificarDiasHistorialAsync(paciente.UsuarioWebId, difDias);
             if (!planCheck.Permitido)
                 return BadRequest(new { message = planCheck.Motivo });
@@ -579,9 +618,31 @@ public class SensoresController : ControllerBase
         _logger.LogInformation("Inserting GPS batch of {Count} records for paciente: {PacienteId}", request.Count, pacienteId);
         foreach (var track in request)
         {
+            var lease = await _idempotencyService.TryAcquireAsync(
+                "gps-tracking", pacienteId, track.SourceMessageId);
+            if (lease == IdempotencyLeaseStatus.Completed) continue;
+            if (lease == IdempotencyLeaseStatus.InProgress)
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    new { message = "Lote GPS en procesamiento; reintente" });
+
             var macAddress = ResolverMac(track.DispositivoMac, pacienteId);
-            await _sensorService.InsertarTrackingAsync(
-                pacienteId, macAddress, track.Longitud, track.Latitud, track.EsEmergencia);
+            var persisted = false;
+            try
+            {
+                await _sensorService.InsertarTrackingAsync(
+                    pacienteId, macAddress, track.Longitud, track.Latitud, track.EsEmergencia,
+                    track.SourceMessageId);
+                persisted = true;
+                await _idempotencyService.CompleteAsync(
+                    "gps-tracking", pacienteId, track.SourceMessageId);
+            }
+            catch
+            {
+                if (!persisted)
+                    await _idempotencyService.AbortAsync(
+                        "gps-tracking", pacienteId, track.SourceMessageId);
+                throw;
+            }
         }
 
         return Ok(new { procesadas = request.Count, message = "Lote GPS procesado" });
@@ -598,10 +659,11 @@ public class SensoresController : ControllerBase
         if (!await _ownershipHelper.VerifyPacienteOwnershipAsync(pacienteId, usuarioId, role!))
             return Forbid();
 
-        if (role == "cuidador")
+        if (role == SystemRoles.Cuidador)
         {
-            var nivelAcceso = User.FindFirst("nivel_acceso")?.Value;
-            if (nivelAcceso != "historial_completo")
+            var hasFullAccess = await _ownershipHelper.VerifyPacienteAccessAsync(
+                pacienteId, usuarioId, role, OwnershipHelper.NivelHistorialCompleto);
+            if (!hasFullAccess)
             {
                 var tieneEmergenciaActiva = await _sensorService.TieneEmergenciaActivaAsync(pacienteId);
                 if (!tieneEmergenciaActiva)

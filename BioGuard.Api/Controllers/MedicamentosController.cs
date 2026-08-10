@@ -44,7 +44,7 @@ public class MedicamentosController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteAccessAsync(pacienteId, usuarioId, role!, OwnershipHelper.NivelResumenSemanal, User.FindFirst("nivel_acceso")?.Value))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(pacienteId, usuarioId, role!, OwnershipHelper.NivelHistorialCompleto))
         {
             _logger.LogWarning("Ownership check failed fetching medications - user: {UserId}, paciente: {PacienteId}", usuarioId, pacienteId);
             return Forbid();
@@ -94,7 +94,7 @@ public class MedicamentosController : ControllerBase
         var role = User.FindFirst(ClaimTypes.Role)?.Value;
         if (string.IsNullOrEmpty(usuarioId)) return Unauthorized();
 
-        if (!await _ownershipHelper.VerifyPacienteAccessAsync(medicamento.PacienteId, usuarioId, role!, OwnershipHelper.NivelResumenSemanal, User.FindFirst("nivel_acceso")?.Value))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(medicamento.PacienteId, usuarioId, role!, OwnershipHelper.NivelHistorialCompleto))
         {
             _logger.LogWarning("Ownership check failed fetching medication - user: {UserId}, paciente: {PacienteId}", usuarioId, medicamento.PacienteId);
             return Forbid();
@@ -227,7 +227,7 @@ public class MedicamentosController : ControllerBase
         var medicamento = await _medicamentoService.ObtenerPorIdAsync(id);
         if (medicamento == null) return NotFound();
 
-        if (!await _ownershipHelper.VerifyPacienteAccessAsync(medicamento.PacienteId, usuarioId, role!, OwnershipHelper.NivelResumenSemanal, User.FindFirst("nivel_acceso")?.Value))
+        if (!await _ownershipHelper.VerifyPacienteAccessAsync(medicamento.PacienteId, usuarioId, role!, OwnershipHelper.NivelHistorialCompleto))
             return Forbid();
 
         var result = await _medicamentoService.RegistrarTomaAsync(id);

@@ -63,7 +63,8 @@ public static class ServiceExtensions
                     {
                         var logger = context.HttpContext.RequestServices
                             .GetRequiredService<ILogger<Program>>();
-                        logger.LogWarning(ex, "Error during token validation (OnTokenValidated)");
+                        logger.LogError(ex, "Token revocation validation failed; rejecting authentication");
+                        context.Fail("Token revocation status could not be verified");
                     }
                 }
             };
@@ -87,9 +88,34 @@ public static class ServiceExtensions
         });
     }
 
-    public static void ConfigureRateLimiting(this IServiceCollection services)
+    public static void ConfigureRateLimiting(
+        this IServiceCollection services,
+        IConfiguration config,
+        bool isProduction)
     {
         services.AddMemoryCache();
+        var redisConnection = config.GetConnectionString("Redis")
+            ?? config["Redis:ConnectionString"]
+            ?? Environment.GetEnvironmentVariable("REDIS_CONNECTION_STRING");
+
+        if (isProduction && string.IsNullOrWhiteSpace(redisConnection))
+        {
+            throw new InvalidOperationException(
+                "Distributed rate limiting requires REDIS_CONNECTION_STRING in production.");
+        }
+
+        if (!string.IsNullOrWhiteSpace(redisConnection))
+        {
+            services.AddStackExchangeRedisCache(options =>
+            {
+                options.Configuration = redisConnection;
+                options.InstanceName = "bioguard-rate-limit:";
+            });
+        }
+        else
+        {
+            services.AddDistributedMemoryCache();
+        }
         services.Configure<IpRateLimitOptions>(options =>
         {
             options.EnableEndpointRateLimiting = true;
@@ -120,7 +146,7 @@ public static class ServiceExtensions
             options.ClientIdHeader = "X-ClientId";
             options.HttpStatusCode = 429;
         });
-        services.AddInMemoryRateLimiting();
+        services.AddDistributedRateLimiting<AsyncKeyLockProcessingStrategy>();
         services.AddSingleton<IRateLimitConfiguration, RateLimitConfiguration>();
     }
 

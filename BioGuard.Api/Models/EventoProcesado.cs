@@ -11,4 +11,10 @@ public class EventoProcesado
 
     [BsonElement("fecha")]
     public DateTime Fecha { get; set; } = DateTime.UtcNow;
+
+    [BsonElement("estado")]
+    public string Estado { get; set; } = "completed";
+
+    [BsonElement("resultado_id")]
+    public string? ResultadoId { get; set; }
 }

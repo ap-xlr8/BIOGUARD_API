@@ -30,32 +30,55 @@ public class FCMService : IFCMService
     {
         try
         {
-            var credPath = _config["Firebase:CredentialsPath"] ?? Environment.GetEnvironmentVariable("FIREBASE_CREDENTIALS_PATH");
             var projectId = _config["Firebase:ProjectId"] ?? Environment.GetEnvironmentVariable("FIREBASE_PROJECT_ID");
+            GoogleCredential credential;
 
-            if (string.IsNullOrWhiteSpace(credPath) || !File.Exists(credPath))
+            // Opción 1: credenciales en Base64 desde variable de entorno (preferido en contenedores)
+            var credBase64 = _config["Firebase:ServiceAccountJson"]
+                ?? Environment.GetEnvironmentVariable("FIREBASE_SERVICE_ACCOUNT_JSON");
+            if (!string.IsNullOrWhiteSpace(credBase64))
             {
-                _logger.LogWarning("Firebase credentials not configured. FCM disabled.");
-                return false;
+                try
+                {
+                    var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(credBase64));
+                    credential = GoogleCredential.FromJson(json);
+                }
+                catch (FormatException)
+                {
+                    // No es Base64 — intentar como JSON directo
+                    credential = GoogleCredential.FromJson(credBase64);
+                }
+            }
+            else
+            {
+                // Opción 2: ruta a archivo en disco (desarrollo local)
+                var credPath = _config["Firebase:CredentialsPath"]
+                    ?? Environment.GetEnvironmentVariable("FIREBASE_CREDENTIALS_PATH");
+                if (string.IsNullOrWhiteSpace(credPath) || !File.Exists(credPath))
+                {
+                    _logger.LogWarning("Firebase: no se encontraron credenciales (FIREBASE_SERVICE_ACCOUNT_JSON ni FIREBASE_CREDENTIALS_PATH). FCM deshabilitado.");
+                    return false;
+                }
+#pragma warning disable CS0618
+                credential = GoogleCredential.FromFile(credPath);
+#pragma warning restore CS0618
             }
 
             if (FirebaseApp.DefaultInstance == null)
             {
                 FirebaseApp.Create(new AppOptions
                 {
-#pragma warning disable CS0618
-                    Credential = GoogleCredential.FromFile(credPath),
-#pragma warning restore CS0618
+                    Credential = credential,
                     ProjectId = projectId
                 });
             }
 
-            _logger.LogInformation("Firebase Admin SDK initialized successfully");
+            _logger.LogInformation("Firebase Admin SDK inicializado correctamente.");
             return true;
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error initializing Firebase Admin SDK");
+            _logger.LogError(ex, "Error al inicializar Firebase Admin SDK");
             return false;
         }
     }
@@ -68,7 +91,7 @@ public class FCMService : IFCMService
         {
             var mensaje = new Message
             {
-                Fid = token,
+                Token = token,
                 Notification = new Notification { Title = titulo, Body = cuerpo },
                 Data = datos ?? new Dictionary<string, string>(),
                 Android = new AndroidConfig
@@ -117,7 +140,7 @@ public class FCMService : IFCMService
         {
             var mensaje = new MulticastMessage
             {
-                Fids = tokens.Where(t => !string.IsNullOrWhiteSpace(t)).ToList(),
+                Tokens = tokens.Where(t => !string.IsNullOrWhiteSpace(t)).ToList(),
                 Notification = new Notification { Title = titulo, Body = cuerpo },
                 Data = datos ?? new Dictionary<string, string>(),
                 Android = new AndroidConfig

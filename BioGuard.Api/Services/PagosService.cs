@@ -208,7 +208,9 @@ public class PagosService
 
     public async Task<bool> DowngradeToFreeAsync(string usuarioId)
     {
-        var freePlan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Nombre == "Gratis");
+        var freeAliases = PlanCatalog.Aliases(PlanCatalog.Free);
+        var freePlan = await _db.FindFirstOrDefaultAsync(
+            _db.Planes, p => freeAliases.Contains(p.Nombre) && p.Activo);
         if (freePlan == null)
         {
             _logger.LogError("No se encontró plan Gratis para downgrade del usuario {UsuarioId}", usuarioId);

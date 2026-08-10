@@ -15,6 +15,10 @@ public class LecturaSensor
     [BsonElement("timestamp")]
     public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 
+    [BsonElement("source_message_id")]
+    [BsonIgnoreIfNull]
+    public string? SourceMessageId { get; set; }
+
     [BsonElement("pulso_bpm")]
     public int PulsoBpm { get; set; }
 
