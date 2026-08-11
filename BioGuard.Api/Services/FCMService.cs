@@ -41,6 +41,7 @@ public class FCMService : IFCMService
                 try
                 {
                     var json = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(credBase64));
+#pragma warning disable CS0618
                     credential = GoogleCredential.FromJson(json);
                 }
                 catch (FormatException)
@@ -59,7 +60,6 @@ public class FCMService : IFCMService
                     _logger.LogWarning("Firebase: no se encontraron credenciales (FIREBASE_SERVICE_ACCOUNT_JSON ni FIREBASE_CREDENTIALS_PATH). FCM deshabilitado.");
                     return false;
                 }
-#pragma warning disable CS0618
                 credential = GoogleCredential.FromFile(credPath);
 #pragma warning restore CS0618
             }
@@ -89,6 +89,7 @@ public class FCMService : IFCMService
 
         try
         {
+#pragma warning disable CS0618
             var mensaje = new Message
             {
                 Token = token,
@@ -115,6 +116,7 @@ public class FCMService : IFCMService
                     }
                 }
             };
+#pragma warning restore CS0618
 
             var response = await FirebaseMessaging.DefaultInstance.SendAsync(mensaje);
             _logger.LogInformation("FCM sent: {MessageId}", response);
@@ -138,6 +140,7 @@ public class FCMService : IFCMService
 
         try
         {
+#pragma warning disable CS0618
             var mensaje = new MulticastMessage
             {
                 Tokens = tokens.Where(t => !string.IsNullOrWhiteSpace(t)).ToList(),
@@ -152,6 +155,7 @@ public class FCMService : IFCMService
                     }
                 }
             };
+#pragma warning restore CS0618
 
             var response = await FirebaseMessaging.DefaultInstance.SendEachForMulticastAsync(mensaje);
             _logger.LogInformation("FCM multicast: {Success}/{Total}", response.SuccessCount, tokens.Count);
