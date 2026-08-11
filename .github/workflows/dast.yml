@@ -4,7 +4,7 @@ on:
   workflow_run:
     workflows: ["BioGuard CI/CD"]
     types: [completed]
-    branches: [master]
+    branches: [main]
   schedule:
     - cron: '0 8 * * 2'
   workflow_dispatch:
@@ -37,7 +37,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        uses: actions/checkout@v4
 
       - name: Determine target URL
         id: target
