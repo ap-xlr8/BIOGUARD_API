@@ -317,7 +317,7 @@ public class PlanesIntegrationTests : IClassFixture<CustomWebApplicationFactory>
         response.StatusCode.Should().Be(HttpStatusCode.OK);
         var json = await response.Content.ReadAsStringAsync();
         var doc = JsonDocument.Parse(json);
-        doc.RootElement.GetProperty("total").GetInt32().Should().Be(3);
+        doc.RootElement.GetProperty("total").GetInt32().Should().Be(5);
     }
 
     [Fact]

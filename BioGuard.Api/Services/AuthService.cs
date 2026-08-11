@@ -81,9 +81,10 @@ public class AuthService
             Correo = request.Correo,
             PasswordHash = PasswordHasher.Hash(request.Password),
             ProveedorAuth = "local",
+            Rol = SystemRoles.Dueno,
             PlanId = plan.Id,
             Activo = false,
-            TwoFactorCode = verificationCode,
+            TwoFactorCode = ComputeSha256Hash(verificationCode),
             TwoFactorExpira = codeExpiry,
             TwoFactorVerificado = false,
             FechaRegistro = DateTime.UtcNow
@@ -127,7 +128,7 @@ public class AuthService
                 _logger.LogWarning("Account locked for user {Correo} after {Attempts} failed attempts", SecurityLog.MaskEmail(request.Correo), attempts);
             }
             await _db.UsuariosWeb.UpdateOneAsync(u => u.Id == user.Id, update);
-            _logger.LogWarning("Invalid password for user: {UserId}", user.Id);
+            _logger.LogWarning("Invalid password for user: {UserId}", user.Id);
             return null;
         }
 
@@ -139,11 +140,7 @@ public class AuthService
                     .Set(u => u.LockedUntil, null));
         }
 
-        var role = "dueno";
-        if (user.Correo.EndsWith("@bioguard.app") || user.Correo == "admin@bioguard.test")
-        {
-            role = SystemRoles.Administrador;
-        }
+        var role = string.IsNullOrWhiteSpace(user.Rol) ? SystemRoles.Dueno : user.Rol;
 
         var requires2FA = user.TwoFactorHabilitado;
         if (role == SystemRoles.Administrador && !requires2FA)
@@ -156,7 +153,7 @@ public class AuthService
             var codigo = RandomNumberString(6);
             var expira = DateTime.UtcNow.AddMinutes(10);
             var update2fa = Builders<UsuarioWeb>.Update
-                .Set(u => u.TwoFactorCode, codigo)
+                .Set(u => u.TwoFactorCode, ComputeSha256Hash(codigo))
                 .Set(u => u.TwoFactorExpira, expira)
                 .Set(u => u.TwoFactorVerificado, false);
             await _db.UsuariosWeb.UpdateOneAsync(u => u.Id == user.Id, update2fa);
@@ -288,9 +285,10 @@ public class AuthService
 
     public async Task<RefreshTokenResponse?> RefreshTokenAsync(RefreshTokenRequest request, string? ip = null)
     {
+        var hashedToken = ComputeSha256Hash(request.RefreshToken);
         // Atomic revoke: only succeeds if token exists and is not yet revoked (prevents rotation race)
         var filter = Builders<RefreshToken>.Filter.And(
-            Builders<RefreshToken>.Filter.Eq(t => t.Token, request.RefreshToken),
+            Builders<RefreshToken>.Filter.Eq(t => t.Token, hashedToken),
             Builders<RefreshToken>.Filter.Eq(t => t.RevokedAt, null)
         );
         var revokeUpdate = Builders<RefreshToken>.Update.Set(t => t.RevokedAt, DateTime.UtcNow);
@@ -299,7 +297,7 @@ public class AuthService
         if (revokeResult.ModifiedCount == 0)
         {
             var alreadyRevoked = await _db.FindFirstOrDefaultAsync(_db.RefreshTokens, t =>
-                t.Token == request.RefreshToken);
+                t.Token == hashedToken);
             if (alreadyRevoked != null && alreadyRevoked.IsRevoked)
             {
                 _logger.LogWarning("Reused revoked refresh token, revoking chain for user: {UsuarioId}", alreadyRevoked.UsuarioId);
@@ -314,7 +312,7 @@ public class AuthService
 
         // Fetch the revoked token data
         var stored = await _db.FindFirstOrDefaultAsync(_db.RefreshTokens, t =>
-            t.Token == request.RefreshToken);
+            t.Token == hashedToken);
 
         if (stored == null) return null;
 
@@ -332,15 +330,16 @@ public class AuthService
         }
 
         var newRefreshToken = GenerateRefreshToken();
+        var newHashedToken = ComputeSha256Hash(newRefreshToken);
 
         // Record replacement chain on the old token
         await _db.RefreshTokens.UpdateOneAsync(t => t.Id == stored.Id,
-            Builders<RefreshToken>.Update.Set(t => t.ReplacedBy, newRefreshToken));
+            Builders<RefreshToken>.Update.Set(t => t.ReplacedBy, newHashedToken));
 
         await _db.RefreshTokens.InsertOneAsync(new RefreshToken
         {
             UsuarioId = userId,
-            Token = newRefreshToken,
+            Token = newHashedToken,
             ExpiresAt = DateTime.UtcNow.AddDays(_refreshTokenDays),
             Ip = ip
         });
@@ -356,8 +355,9 @@ public class AuthService
         var dueno = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.Id == usuarioId);
         if (dueno != null)
         {
+            var role = string.IsNullOrWhiteSpace(dueno.Rol) ? SystemRoles.Dueno : dueno.Rol;
             var duenoExtra = await PacienteIdClaimParaDuenoAsync(dueno.Id);
-            return (dueno.Id, $"{dueno.Nombre} {dueno.ApellidoPaterno}", "dueno", duenoExtra);
+            return (dueno.Id, $"{dueno.Nombre} {dueno.ApellidoPaterno}", role, duenoExtra);
         }
 
         var paciente = await _db.FindFirstOrDefaultAsync(_db.Pacientes, p => p.Id == usuarioId);
@@ -384,9 +384,12 @@ public class AuthService
 
     public async Task RevokeRefreshTokenAsync(RefreshToken token)
     {
+        var hashedToken = ComputeSha256Hash(token.Token);
+        var hashedReplacedBy = token.ReplacedBy != null ? ComputeSha256Hash(token.ReplacedBy) : null;
+
         var filter = Builders<RefreshToken>.Filter.Where(t =>
-            t.Token == token.Token ||
-            (token.ReplacedBy != null && t.Token == token.ReplacedBy));
+            t.Token == hashedToken || t.Token == token.Token ||
+            (hashedReplacedBy != null && (t.Token == hashedReplacedBy || t.Token == token.ReplacedBy)));
 
         var update = Builders<RefreshToken>.Update.Set(t => t.RevokedAt, DateTime.UtcNow);
 
@@ -408,7 +411,7 @@ public class AuthService
         var expira = DateTime.UtcNow.AddMinutes(10);
 
         var update = Builders<UsuarioWeb>.Update
-            .Set(u => u.TwoFactorCode, codigo)
+            .Set(u => u.TwoFactorCode, ComputeSha256Hash(codigo))
             .Set(u => u.TwoFactorExpira, expira)
             .Set(u => u.TwoFactorVerificado, false);
 
@@ -445,9 +448,10 @@ public class AuthService
         var requestCodigo = request.Codigo ?? request.CodigoOtp;
         if (string.IsNullOrEmpty(requestCodigo)) return null;
 
+        var hashedRequestCode = ComputeSha256Hash(requestCodigo);
         var codeMatch = CryptographicOperations.FixedTimeEquals(
             Encoding.UTF8.GetBytes(user.TwoFactorCode),
-            Encoding.UTF8.GetBytes(requestCodigo));
+            Encoding.UTF8.GetBytes(hashedRequestCode));
         if (!codeMatch)
         {
             var attempts = user.Failed2FAAttempts + 1;
@@ -476,12 +480,13 @@ public class AuthService
 
         await _db.UsuariosWeb.UpdateOneAsync(u => u.Id == user.Id, updateReset);
 
+        var userRole = string.IsNullOrWhiteSpace(user.Rol) ? SystemRoles.Dueno : user.Rol;
         var plan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Id == user.PlanId);
-        var token = GenerateToken(user.Id, user.Correo, "dueno");
+        var token = GenerateToken(user.Id, user.Correo, userRole);
         var refreshToken = await CreateAndStoreRefreshTokenAsync(user.Id);
         _logger.LogInformation("2FA verified successfully for user: {UserId} (activated={WasInactive})", user.Id, wasInactive);
 
-        return new AuthResponse(token, user.Id, $"{user.Nombre} {user.ApellidoPaterno}", "dueno", plan?.Nombre ?? "Sin plan", RefreshToken: refreshToken);
+        return new AuthResponse(token, user.Id, $"{user.Nombre} {user.ApellidoPaterno}", userRole, plan?.Nombre ?? "Sin plan", RefreshToken: refreshToken);
     }
 
     // ── Forgot Password ────────────────────────────────────
@@ -499,7 +504,7 @@ public class AuthService
         var expira = DateTime.UtcNow.AddHours(1);
 
         var update = Builders<UsuarioWeb>.Update
-            .Set(u => u.ResetPasswordToken, token)
+            .Set(u => u.ResetPasswordToken, ComputeSha256Hash(token))
             .Set(u => u.ResetPasswordExpira, expira);
 
         await _db.UsuariosWeb.UpdateOneAsync(u => u.Id == user.Id, update);
@@ -519,7 +524,8 @@ public class AuthService
             return false;
         }
 
-        var user = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.Correo == request.Correo && u.ResetPasswordToken == request.Token);
+        var hashedToken = ComputeSha256Hash(request.Token);
+        var user = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.Correo == request.Correo && u.ResetPasswordToken == hashedToken);
 
         if (user == null)
         {
@@ -657,7 +663,7 @@ public class AuthService
 
         var resetToken = GenerateRandomToken();
         var update = Builders<UsuarioWeb>.Update
-            .Set(u => u.ResetPasswordToken, resetToken)
+            .Set(u => u.ResetPasswordToken, ComputeSha256Hash(resetToken))
             .Set(u => u.ResetPasswordExpira, DateTime.UtcNow.AddHours(1));
 
         await _db.UsuariosWeb.UpdateOneAsync(u => u.Id == user.Id, update);
@@ -671,7 +677,8 @@ public class AuthService
 
     public virtual async Task<bool> ResetPasswordAsync(string token, string newPassword)
     {
-        var user = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.ResetPasswordToken == token && u.ResetPasswordExpira > DateTime.UtcNow);
+        var hashedToken = ComputeSha256Hash(token);
+        var user = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.ResetPasswordToken == hashedToken && u.ResetPasswordExpira > DateTime.UtcNow);
         if (user == null)
         {
             _logger.LogWarning("Reset password failed: invalid or expired token: {Token}", SecurityLog.Fingerprint(token));
@@ -709,10 +716,11 @@ public class AuthService
     private async Task<string> CreateAndStoreRefreshTokenAsync(string userId)
     {
         var refreshToken = GenerateRefreshToken();
+        var hashedToken = ComputeSha256Hash(refreshToken);
         await _db.RefreshTokens.InsertOneAsync(new RefreshToken
         {
             UsuarioId = userId,
-            Token = refreshToken,
+            Token = hashedToken,
             ExpiresAt = DateTime.UtcNow.AddDays(_refreshTokenDays),
         });
         _logger.LogInformation("Refresh token created for user: {UserId}", userId);
@@ -775,6 +783,13 @@ public class AuthService
         using var rng = RandomNumberGenerator.Create();
         rng.GetBytes(bytes);
         return Convert.ToBase64String(bytes).Replace("+", "-").Replace("/", "_");
+    }
+
+    private static string ComputeSha256Hash(string rawInput)
+    {
+        if (string.IsNullOrEmpty(rawInput)) return string.Empty;
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(rawInput));
+        return Convert.ToHexString(bytes);
     }
 
     private async Task<(string? email, string? sub)> ValidarTokenGoogleAsync(string idToken)

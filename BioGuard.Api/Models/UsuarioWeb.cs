@@ -34,6 +34,9 @@ public class UsuarioWeb
     [BsonElement("proveedor_auth")]
     public string ProveedorAuth { get; set; } = "local";
 
+    [BsonElement("rol")]
+    public string Rol { get; set; } = Config.SystemRoles.Dueno;
+
     [BsonElement("google_id")]
     public string? GoogleId { get; set; }
 

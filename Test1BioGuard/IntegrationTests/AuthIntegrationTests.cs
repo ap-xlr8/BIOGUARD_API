@@ -231,7 +231,7 @@ public class AuthIntegrationTests : IClassFixture<CustomWebApplicationFactory>
             PlanId = "plan1",
             Nombre = "Test",
             ApellidoPaterno = "User",
-            TwoFactorCode = "123456",
+            TwoFactorCode = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("123456"))),
             TwoFactorExpira = DateTime.UtcNow.AddMinutes(5)
         };
         var plan = new Plan { Id = "plan1", Nombre = "Premium" };

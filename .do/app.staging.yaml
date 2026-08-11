@@ -6,7 +6,7 @@ services:
     image:
       registry_type: GHCR
       registry: ghcr.io
-      repository: lizperz/backend-bioguard
+      repository: ap-xlr8/bioguard_api
       digest: ${IMAGE_DIGEST}
 
     http_port: 8080
@@ -43,6 +43,8 @@ services:
       - key: PAYPAL_CLIENT_ID
         value: ${STAGING_PAYPAL_CLIENT_ID}
         type: SECRET
-      - key: FIREBASE_SERVER_KEY
-        value: ${STAGING_FIREBASE_SERVER_KEY}
+      - key: FIREBASE_SERVICE_ACCOUNT_JSON
+        value: ${STAGING_FIREBASE_SERVICE_ACCOUNT_JSON}
         type: SECRET
+      - key: FIREBASE_PROJECT_ID
+        value: ${STAGING_FIREBASE_PROJECT_ID}

@@ -62,7 +62,7 @@ curl -s https://bioguard-api-lkvnq.ondigitalocean.app/health
 
 1. Push a `master` (PR merge) dispara `.github/workflows/ci.yml`:
    - Build + 532 tests + coverage.
-   - Docker build multi-stage y push a `ghcr.io/lizperz/backend-bioguard`.
+   - Docker build multi-stage y push a `ghcr.io/ap-xlr8/bioguard_api`.
    - Deploy a App Platform usando `.do/app.yaml` (digest de la imagen nueva).
 2. Verificar `/health` y un endpoint autenticado.
 
@@ -70,7 +70,7 @@ curl -s https://bioguard-api-lkvnq.ondigitalocean.app/health
 
 1. Push a `master` con cambios en `FrontendWebBioGuard/**` dispara `.github/workflows/deploy-web.yml`:
    - `npm ci && npm run build` (dentro de Docker).
-   - Push a `ghcr.io/lizperz/frontendweb-bioguard`.
+   - Push a `ghcr.io/ap-xlr8/frontendweb-bioguard`.
    - Deploy a App Platform con `.do/app-web.yaml`.
 2. El nginx del contenedor sirve el SPA y proxya `/api` y `/health` al backend de produccion.
 
@@ -114,7 +114,7 @@ curl -s https://bioguard-api-lkvnq.ondigitalocean.app/health
 2. Seleccionar el deployment anterior (digest de imagen previo) y elegir **Rollback**.
 3. Alternativa manual: en GitHub Actions, re-ejecutar el workflow con el SHA anterior:
    ```bash
-   # En el workflow se taggea ghcr.io/lizperz/backend-bioguard:${{ github.sha }}
+   # En el workflow se taggea ghcr.io/ap-xlr8/bioguard_api:${{ github.sha }}
    # Volver a desplegar el digest de ese SHA via App Platform.
    ```
 

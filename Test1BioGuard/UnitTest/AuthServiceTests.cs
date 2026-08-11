@@ -274,7 +274,7 @@ public class AuthServiceTests
         var user = new UsuarioWeb
         {
             Id = "user123", Correo = "test@test.com", Activo = true,
-            TwoFactorCode = "123456", TwoFactorExpira = DateTime.UtcNow.AddMinutes(5),
+            TwoFactorCode = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("123456"))), TwoFactorExpira = DateTime.UtcNow.AddMinutes(5),
             PlanId = "plan1", Nombre = "Test", ApellidoPaterno = "User"
         };
         var plan = new Plan { Id = "plan1", Nombre = "Premium" };

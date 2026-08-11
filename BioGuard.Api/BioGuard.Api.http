@@ -1,6 +1,6 @@
 @BioGuard.Api_HostAddress = http://localhost:5057
 
-GET {{BioGuard.Api_HostAddress}}/weatherforecast/
+GET {{BioGuard.Api_HostAddress}}/health
 Accept: application/json
 
 ###

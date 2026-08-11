@@ -8,6 +8,7 @@ namespace BioGuard.Api.Services;
 public class CriptoService
 {
     private readonly byte[] _key;
+    private readonly ILogger<CriptoService>? _logger;
     // AES-GCM: nonce 12 bytes, tag 16 bytes (128 bits)
     private const int NonceSizeBytes = 12;
     private const int TagSizeBytes = 16;
@@ -16,6 +17,7 @@ public class CriptoService
 
     public CriptoService(IConfiguration config, ILogger<CriptoService>? logger = null)
     {
+        _logger = logger;
         var configuredKey = config["Cripto:Key"];
         if (!string.IsNullOrEmpty(configuredKey))
         {
@@ -98,8 +100,9 @@ public class CriptoService
             aesGcm.Decrypt(nonce, cipherBytes, tag, plainBytes);
             return Encoding.UTF8.GetString(plainBytes);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger?.LogWarning(ex, "Failed to decrypt AES-GCM payload. Outputting raw ciphertext.");
             return base64;
         }
     }
@@ -122,8 +125,9 @@ public class CriptoService
             var plainBytes = decryptor.TransformFinalBlock(cipher, 0, cipher.Length);
             return Encoding.UTF8.GetString(plainBytes);
         }
-        catch
+        catch (Exception ex)
         {
+            _logger?.LogWarning(ex, "Failed to decrypt legacy AES-CBC payload. Data corruption or key mismatch suspected.");
             return cipherText;
         }
     }

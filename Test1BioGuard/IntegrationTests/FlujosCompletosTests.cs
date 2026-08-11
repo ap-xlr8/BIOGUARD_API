@@ -329,7 +329,7 @@ public class FlujosCompletosTests : IClassFixture<CustomWebApplicationFactory>
         var cuidador = new Cuidador
         {
             Id = cuidadorId, UsuarioWebId = duenoId, PacienteId = pacienteId,
-            Nombre = "Pedro", Parentesco = "Hermano", NivelAcceso = "solo_alertas",
+            Nombre = "Pedro", Parentesco = "Hermano", NivelAcceso = "resumen_semanal",
             CodigoAccesoQr = "CUID-QR-ABC"
         };
 
@@ -411,6 +411,13 @@ public class FlujosCompletosTests : IClassFixture<CustomWebApplicationFactory>
         var loginJson = await loginResponse.Content.ReadAsStringAsync();
         var loginDoc = JsonDocument.Parse(loginJson);
         loginDoc.RootElement.GetProperty("rol").GetString().Should().Be("cuidador");
+
+        // El login por codigo necesita Paciente=null para caer al buscador de cuidadores;
+        // restaurar el mock porque el control de acceso consulta el paciente por Id.
+        _mockDb.Setup(db => db.FindFirstOrDefaultAsync(
+                It.IsAny<IMongoCollection<Paciente>>(),
+                It.IsAny<System.Linq.Expressions.Expression<Func<Paciente, bool>>>()))
+            .ReturnsAsync(paciente);
 
         // -- Step 4: Access patient data as cuidador --
         _mockDb.Setup(db => db.FindToListAsync(

@@ -131,7 +131,7 @@ public class IaCTests
         content.Should().Contain("STAGING_JWT_SECRET_KEY");
         content.Should().Contain("STAGING_STRIPE_SECRET_KEY");
         content.Should().Contain("STAGING_PAYPAL_CLIENT_ID");
-        content.Should().Contain("STAGING_FIREBASE_SERVER_KEY");
+        content.Should().Contain("STAGING_FIREBASE_SERVICE_ACCOUNT_JSON");
     }
 
     [Fact]
@@ -152,7 +152,7 @@ public class IaCTests
         content.Should().Contain("JWT_SECRET_KEY");
         content.Should().Contain("STRIPE_SECRET_KEY");
         content.Should().Contain("PAYPAL_CLIENT_ID");
-        content.Should().Contain("FIREBASE_SERVER_KEY");
+        content.Should().Contain("FIREBASE_SERVICE_ACCOUNT_JSON");
     }
 
     [Fact]

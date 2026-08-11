@@ -24,32 +24,6 @@ var mongoConnectionString = FallbackIfEmpty(builder.Configuration["ConnectionStr
         Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING"))
     ?? throw new InvalidOperationException("MongoDB connection string not configured.");
 var jwtKey = FallbackIfEmpty(builder.Configuration["Jwt:Key"],
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.OpenApi.Models;
-using MongoDB.Driver;
-using MongoDB.Bson;
-using AspNetCoreRateLimit;
-using BioGuard.Api.Config;
-using BioGuard.Api.Models;
-using BioGuard.Api.Services;
-
-var builder = WebApplication.CreateBuilder(args);
-
-builder.WebHost.ConfigureKestrel(options =>
-{
-    options.AddServerHeader = false;
-});
-
-// =============================================
-// CONFIGURATION AND DATABASE (MongoDB)
-// =============================================
-static string? FallbackIfEmpty(string? value, string? fallback)
-    => string.IsNullOrWhiteSpace(value) ? fallback : value;
-
-var mongoConnectionString = FallbackIfEmpty(builder.Configuration["ConnectionStrings:MongoDB"],
-        Environment.GetEnvironmentVariable("MONGODB_CONNECTION_STRING"))
-    ?? throw new InvalidOperationException("MongoDB connection string not configured.");
-var jwtKey = FallbackIfEmpty(builder.Configuration["Jwt:Key"],
         Environment.GetEnvironmentVariable("JWT_SECRET_KEY"))
     ?? throw new InvalidOperationException("JWT secret key not configured.");
 
