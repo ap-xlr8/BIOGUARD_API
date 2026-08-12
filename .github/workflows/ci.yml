@@ -201,7 +201,7 @@ jobs:
         env:
           IMAGE_DIGEST: ${{ needs.docker-build.outputs.image_digest }}
         with:
-          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN || secrets.DO_TOKEN || secrets.DIGITAL_OCEAN_TOKEN }}
 
       - name: Post-Deployment Smoke Test
         run: |
@@ -246,7 +246,7 @@ jobs:
         env:
           IMAGE_DIGEST: ${{ needs.docker-build.outputs.image_digest }}
         with:
-          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN || secrets.DO_TOKEN || secrets.DIGITAL_OCEAN_TOKEN }}
 
       - name: Post-Deployment Health Check
         run: |
