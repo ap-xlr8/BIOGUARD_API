@@ -125,21 +125,13 @@ public class AuthController : ControllerBase
         return Ok(ToWebAuthResponse(result));
     }
 
-    // POST /api/Auth/login-google [WEB]
+    // POST /api/Auth/login-google [DISABLED]
 
     [HttpPost("login-google")]
-    public async Task<IActionResult> LoginGoogle([FromBody] LoginGoogleRequest request)
+    public IActionResult LoginGoogle([FromBody] LoginGoogleRequest request)
     {
-        _logger.LogInformation("Google login attempt");
-        var result = await _authService.LoginGoogleAsync(request);
-        if (result == null)
-        {
-            _logger.LogWarning("Google login failed - invalid Google token");
-            return Unauthorized(new { message = "Token de Google inválido" });
-        }
-        _logger.LogInformation("Google login successful");
-        SetWebRefreshCookie(result.RefreshToken);
-        return Ok(ToWebAuthResponse(result));
+        _logger.LogWarning("Disabled Google login attempt blocked");
+        return StatusCode(StatusCodes.Status410Gone, new { message = "El inicio de sesión con Google ya no está habilitado" });
     }
 
     // POST /api/Auth/login-codigo [MÓVIL]

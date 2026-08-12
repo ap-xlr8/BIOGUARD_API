@@ -19,7 +19,6 @@ public class AuthService
     private readonly string _audience;
     private readonly int _expirationMinutes;
     private readonly int _refreshTokenDays;
-    private readonly string? _googleClientId;
     private readonly HttpClient _httpClient;
     private readonly ILogger<AuthService> _logger;
     private readonly IEmailService _emailService;
@@ -39,8 +38,6 @@ public class AuthService
         _audience = config["Jwt:Audience"] ?? "BioGuardApp";
         _expirationMinutes = int.Parse(config["Jwt:ExpirationMinutes"] ?? "60");
         _refreshTokenDays = int.Parse(config["Jwt:RefreshTokenDays"] ?? "7");
-        _googleClientId = config["Google:ClientId"]
-            ?? Environment.GetEnvironmentVariable("GOOGLE_CLIENT_ID");
     }
 
     // ── Register ───────────────────────────────────────────
@@ -170,56 +167,12 @@ public class AuthService
         return new AuthResponse(token, user.Id, $"{user.Nombre} {user.ApellidoPaterno}", role, plan?.Nombre ?? "Sin plan", RefreshToken: refreshToken);
     }
 
-    // ── Login Google ───────────────────────────────────────
+    // ── Login Google (Deshabilitado) ───────────────────────
 
-    public async Task<AuthResponse?> LoginGoogleAsync(LoginGoogleRequest request)
+    public Task<AuthResponse?> LoginGoogleAsync(LoginGoogleRequest request)
     {
-        var (email, sub) = await ValidarTokenGoogleAsync(request.IdToken);
-        if (email == null || sub == null)
-        {
-            _logger.LogWarning("Google login attempt with invalid token");
-            return null;
-        }
-
-        var user = await _db.FindFirstOrDefaultAsync(_db.UsuariosWeb, u => u.Correo == email);
-
-        if (user == null)
-        {
-            var freeAliases = PlanCatalog.Aliases(PlanCatalog.Free);
-            var plan = await _db.FindFirstOrDefaultAsync(
-                _db.Planes, p => freeAliases.Contains(p.Nombre) && p.Activo);
-            if (plan == null) return null;
-
-            user = new UsuarioWeb
-            {
-                Nombre = email.Split('@')[0],
-                ApellidoPaterno = "",
-                ApellidoMaterno = "",
-                Correo = email,
-                PasswordHash = "",
-                ProveedorAuth = "google",
-                GoogleId = sub,
-                PlanId = plan.Id,
-                Activo = true,
-                FechaRegistro = DateTime.UtcNow
-            };
-
-        await _db.UsuariosWeb.InsertOneAsync(user);
-        }
-
-        if (!user.Activo)
-        {
-            _logger.LogWarning("Google login blocked - account inactive: {Email}", SecurityLog.MaskEmail(email));
-            return null;
-        }
-
-        var userPlan = await _db.FindFirstOrDefaultAsync(_db.Planes, p => p.Id == user.PlanId);
-        var duenoExtra = await PacienteIdClaimParaDuenoAsync(user.Id);
-        var token = GenerateToken(user.Id, user.Correo, "dueno", duenoExtra);
-        var refreshToken = await CreateAndStoreRefreshTokenAsync(user.Id);
-        _logger.LogInformation("Google login successful for user: {UserId}", user.Id);
-
-        return new AuthResponse(token, user.Id, $"{user.Nombre} {user.ApellidoPaterno}", "dueno", userPlan?.Nombre ?? "Sin plan", RefreshToken: refreshToken);
+        _logger.LogWarning("LoginGoogleAsync called but Google login is disabled.");
+        return Task.FromResult<AuthResponse?>(null);
     }
 
     // ── Login por Código (Móvil) ───────────────────────────
@@ -792,49 +745,7 @@ public class AuthService
         return Convert.ToHexString(bytes);
     }
 
-    private async Task<(string? email, string? sub)> ValidarTokenGoogleAsync(string idToken)
-    {
-        try
-        {
-            var response = await _httpClient.GetAsync(
-                $"https://oauth2.googleapis.com/tokeninfo?id_token={Uri.EscapeDataString(idToken)}");
 
-            if (!response.IsSuccessStatusCode) return (null, null);
-
-            var json = await response.Content.ReadAsStringAsync();
-            var claims = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string, object>>(json);
-            if (claims == null) return (null, null);
-
-            if (!claims.TryGetValue("iss", out var issObj) || issObj is not string iss
-                || iss is not ("accounts.google.com" or "https://accounts.google.com"))
-            {
-                return (null, null);
-            }
-
-            if (!claims.TryGetValue("email", out var emailObj) || emailObj is not string email
-                || !claims.TryGetValue("email_verified", out var verifiedObj)
-                || verifiedObj is not string verified || verified != "true")
-            {
-                return (null, null);
-            }
-
-            if (!string.IsNullOrEmpty(_googleClientId))
-            {
-                if (!claims.TryGetValue("aud", out var audObj) || audObj is not string aud || aud != _googleClientId)
-                    return (null, null);
-            }
-
-            claims.TryGetValue("sub", out var subObj);
-            var sub = subObj as string;
-
-            return (email, sub);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error validating Google token");
-            return (null, null);
-        }
-    }
 }
 
 // ── PBKDF2 Password Hasher ──────────────────────────────

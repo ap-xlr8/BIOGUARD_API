@@ -70,7 +70,10 @@ public class PagosController : ControllerBase
 
         var allowedHosts = new[] { "bioguard.app", "localhost", "127.0.0.1" };
         var host = Request.Host.Host;
-        if (!allowedHosts.Any(h => host.Contains(h, StringComparison.OrdinalIgnoreCase)))
+        var isAllowed = allowedHosts.Any(h =>
+            host.Equals(h, StringComparison.OrdinalIgnoreCase) ||
+            host.EndsWith("." + h, StringComparison.OrdinalIgnoreCase));
+        if (!isAllowed)
         {
             _logger.LogWarning("Blocked payment session creation with unexpected Host header: {Host}", Request.Host);
             return BadRequest(new { message = "Host no permitido" });
