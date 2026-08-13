@@ -24,7 +24,7 @@ permissions:
   actions: read
 
 env:
-  DEFAULT_TARGET: 'https://bioguard-api-lkvnq.ondigitalocean.app'
+  DEFAULT_TARGET: ${{ vars.STAGING_URL || secrets.STAGING_URL || 'https://bioguard-api-lkvnq.ondigitalocean.app' }}
 
 jobs:
   zap-baseline:

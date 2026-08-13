@@ -314,10 +314,13 @@ var seedEndpoint = app.MapPost("/api/Seed/seed-all", async (IMongoDbContext db, 
         var macAddr = $"AA:BB:CC:{rnd.Next(0x10,0xFF):X2}:{rnd.Next(0x10,0xFF):X2}:{rnd.Next(0x10,0xFF):X2}";
         var testEmail = $"seed_{DateTime.UtcNow.Ticks}@bioguard.test";
 
+        var userSeedPass = $"SeedUser_{Guid.NewGuid():N}[A1!]";
+        var cuidadorSeedPass = $"SeedCuid_{Guid.NewGuid():N}[A1!]";
+
         var user = new UsuarioWeb
         {
             Nombre = "Carlos", ApellidoPaterno = "Martinez", ApellidoMaterno = "Lopez",
-            Correo = testEmail, PasswordHash = PasswordHasher.Hash("SeedTest@123!"),
+            Correo = testEmail, PasswordHash = PasswordHasher.Hash(userSeedPass),
             ProveedorAuth = "local", PlanId = existingPlan!.Id, Activo = true, FechaRegistro = now
         };
         await SafeInsertOne(db.UsuariosWeb, user, "user");
@@ -403,7 +406,7 @@ var seedEndpoint = app.MapPost("/api/Seed/seed-all", async (IMongoDbContext db, 
         {
             Nombre = "Maria", ApellidoPaterno = "Martinez", ApellidoMaterno = "Ruiz",
             Correo = $"cuidador_{DateTime.UtcNow.Ticks}@bioguard.test",
-            PasswordHash = PasswordHasher.Hash("Cuidador@123!"),
+            PasswordHash = PasswordHasher.Hash(cuidadorSeedPass),
             ProveedorAuth = "local", PlanId = existingPlan.Id, Activo = true, FechaRegistro = now
         };
         await SafeInsertOne(db.UsuariosWeb, cuidadorUser, "cuidador-user");
@@ -441,7 +444,7 @@ var seedEndpoint = app.MapPost("/api/Seed/seed-all", async (IMongoDbContext db, 
         {
             message = "Seed data inserted",
             userId = user.Id, pacienteId = paciente.Id, cuidadorUserId = cuidadorUser.Id,
-            email = testEmail,
+            email = testEmail, userPassword = userSeedPass, cuidadorPassword = cuidadorSeedPass,
             skipped, stats = new { lecturas = lecturas.Count, eventos = eventos.Count, tracking = 3, medicamentos = medNames.Length, alertas = 3, notificaciones = 2, dispositivos = 1, cuidadores = 1, pagos = 1, modelos = 1, predicciones = 1 }
         });
     }
@@ -455,9 +458,9 @@ var seedEndpoint = app.MapPost("/api/Seed/seed-all", async (IMongoDbContext db, 
 // Seed solo accesible con header de secreto en Development
 seedEndpoint.AllowAnonymous().AddEndpointFilter(async (ctx, next) =>
 {
-    var secret = app.Configuration["Seed:Secret"] ?? "dev-seed-secret";
-    if (!ctx.HttpContext.Request.Headers.TryGetValue("X-Seed-Secret", out var val) || val != secret)
-        return Results.Problem("Unauthorized", statusCode: 401);
+    var secret = app.Configuration["Seed:Secret"] ?? Environment.GetEnvironmentVariable("SEED_SECRET");
+    if (string.IsNullOrWhiteSpace(secret) || !ctx.HttpContext.Request.Headers.TryGetValue("X-Seed-Secret", out var val) || val != secret)
+        return Results.Problem("Unauthorized: Seed secret not configured or invalid X-Seed-Secret header", statusCode: 401);
     return await next(ctx);
 });
 }
