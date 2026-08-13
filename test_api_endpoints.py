@@ -1,3 +1,4 @@
+import os
 import sys
 import json
 import time
@@ -6,7 +7,7 @@ import urllib.error
 
 sys.stdout.reconfigure(encoding='utf-8')
 
-BASE_URL = "https://bioguard-api-6k8p.onrender.com"
+BASE_URL = os.getenv("TARGET_URL", "http://localhost:5000")
 if len(sys.argv) > 1:
     BASE_URL = sys.argv[1].rstrip("/")
 

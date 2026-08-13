@@ -45,3 +45,9 @@ appsettings.*.Local.json
 !env.example
 !.env.example
 !appsettings.Example.json
+
+## Test Artifacts
+TestResults/
+*.trx
+coverage*.xml
+coverage*.json

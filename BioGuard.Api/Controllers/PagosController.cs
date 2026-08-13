@@ -95,7 +95,7 @@ public class PagosController : ControllerBase
         if (!gatewayResult.Success)
         {
             _logger.LogWarning("Gateway returned failure for plan {PlanNombre}: {Error}", request.PlanNombre, gatewayResult.Error);
-            return StatusCode(502, new { message = gatewayResult.Error ?? "Error del procesador de pago" });
+            return StatusCode(502, new { message = "Error del procesador de pago. Por favor verifique los datos del método de pago o intente más tarde." });
         }
 
         var pago = await _pagosService.CrearSesionAsync(usuarioId, plan, gatewayResult, request.Procesador);
